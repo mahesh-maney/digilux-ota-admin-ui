@@ -1,18 +1,29 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
+function compareSemver(a, b) {
+  const pa = a.split('.').map(n => parseInt(n) || 0);
+  const pb = b.split('.').map(n => parseInt(n) || 0);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+  }
+  return 0;
+}
+
 export default function DeploymentDetailPage() {
-  const { jobId }  = useParams();
-  const { token }  = useAuth();
-  const [job,      setJob]      = useState(null);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState('');
-  const [aborting, setAborting] = useState(false);
+  const { jobId }      = useParams();
+  const { token }      = useAuth();
+  const navigate       = useNavigate();
+  const [job,          setJob]          = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState('');
+  const [aborting,     setAborting]     = useState(false);
+  const [rollingBack,  setRollingBack]  = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -63,6 +74,67 @@ export default function DeploymentDetailPage() {
     }
   };
 
+  const handleRollback = async () => {
+    setRollingBack(true);
+    setError('');
+    try {
+      const { data } = await apiClient(token).get('/ota/packages?status=ACTIVE');
+      const allPkgs  = data.packages || [];
+
+      const candidates = allPkgs
+        .filter(p => p.packageName === job.packageName && p.activated && p.version !== job.version)
+        .sort((a, b) => compareSemver(b.version, a.version));
+
+      const prev = candidates[0];
+
+      if (!prev) {
+        alert(`No previous active version found for ${job.packageName}.\nUpload and publish an earlier version first.`);
+        return;
+      }
+
+      const confirmed = confirm(
+        `Create rollback deployment?\n\n` +
+        `Package:  ${job.packageName}\n` +
+        `From:     v${job.version}\n` +
+        `To:       v${prev.version}\n` +
+        `Target:   ${job.targetType}: ${job.targetId}\n` +
+        `Stage:    ${job.rolloutStage}`,
+      );
+      if (!confirmed) return;
+
+      logger.info('DeploymentDetailPage', 'Rollback initiated', {
+        jobId, packageName: job.packageName,
+        fromVersion: job.version, toVersion: prev.version,
+      });
+      audit.log('DEPLOYMENT_ROLLBACK', { jobId, packageName: job.packageName }, 'INITIATED', {
+        fromVersion: job.version, toVersion: prev.version,
+      });
+
+      const { data: newJob } = await apiClient(token).post('/ota/deployments', {
+        packageName:  job.packageName,
+        version:      prev.version,
+        targetType:   job.targetType,
+        targetId:     job.targetId,
+        rolloutStage: job.rolloutStage,
+      });
+
+      logger.info('DeploymentDetailPage', 'Rollback deployment created', { newJobId: newJob.jobId });
+      audit.log('DEPLOYMENT_ROLLBACK', { jobId, packageName: job.packageName }, 'SUCCESS', {
+        newJobId: newJob.jobId, toVersion: prev.version,
+      });
+
+      navigate(`/deployments/${newJob.jobId}`);
+
+    } catch (err) {
+      const reason = err.response?.data?.error || err.message || 'Rollback failed';
+      logger.error('DeploymentDetailPage', 'Rollback failed', { jobId, reason });
+      audit.log('DEPLOYMENT_ROLLBACK', { jobId }, 'FAILURE', { reason });
+      setError(reason);
+    } finally {
+      setRollingBack(false);
+    }
+  };
+
   const terminal = ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(job?.status);
 
   return (
@@ -74,6 +146,15 @@ export default function DeploymentDetailPage() {
         </div>
         <div className="header-actions">
           <button className="btn btn-secondary btn-sm" onClick={load}>Refresh</button>
+          {job && (
+            <button
+              className="btn btn-warning btn-sm"
+              onClick={handleRollback}
+              disabled={rollingBack}
+            >
+              {rollingBack ? 'Finding version…' : '↩ Rollback'}
+            </button>
+          )}
           {!terminal && (
             <button
               className="btn btn-danger btn-sm"

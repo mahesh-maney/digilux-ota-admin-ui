@@ -168,7 +168,10 @@ export default function DeploymentsPage() {
             <tbody>
               {deployments.map(d => (
                 <tr key={d.jobId}>
-                  <td><code className="text-sm">{d.jobId?.slice(-12)}</code></td>
+                  <td>
+                    <code className="text-sm" title={d.jobId}>{d.jobId?.slice(-16)}</code>
+                    <button className="btn-copy" title="Copy full Job ID" onClick={() => navigator.clipboard.writeText(d.jobId)}>⎘</button>
+                  </td>
                   <td><strong>{d.packageName}</strong></td>
                   <td><code>{d.version}</code></td>
                   <td className="text-sm">{d.targetType}: {d.targetId}</td>

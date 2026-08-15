@@ -2,6 +2,7 @@ const MAP = {
   ACTIVE:      'badge-green',
   PENDING:     'badge-yellow',
   CORRUPTED:   'badge-red',
+  RECALLED:    'badge-orange',
   QUEUED:      'badge-blue',
   IN_PROGRESS: 'badge-blue',
   SUCCEEDED:   'badge-green',
