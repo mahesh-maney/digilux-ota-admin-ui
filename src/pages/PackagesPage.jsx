@@ -6,6 +6,50 @@ import { DEVICE_TYPES } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
+function compareSemver(a, b) {
+  const pa = a.split('.').map(n => parseInt(n) || 0);
+  const pb = b.split('.').map(n => parseInt(n) || 0);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+  }
+  return 0;
+}
+
+function sortPackages(pkgs, col, dir) {
+  if (!col) return pkgs;
+  return [...pkgs].sort((a, b) => {
+    let av = a[col], bv = b[col];
+    if (col === 'version') return dir * compareSemver(av || '', bv || '');
+    if (col === 'createdAt' || col === 'artifactSize') return dir * ((av || 0) - (bv || 0));
+    if (col === 'activated') return dir * ((av ? 1 : 0) - (bv ? 1 : 0));
+    return dir * (av || '').toString().localeCompare((bv || '').toString());
+  });
+}
+
+function filterPackages(pkgs, searches) {
+  return pkgs.filter(p => {
+    for (const [col, val] of Object.entries(searches)) {
+      if (!val || val.length < 3) continue;
+      const v = val.toLowerCase();
+      if (col === 'packageName'  && !(p.packageName  || '').toLowerCase().includes(v)) return false;
+      if (col === 'version'      && !(p.version      || '').toLowerCase().includes(v)) return false;
+      if (col === 'releaseNotes' && !(p.releaseNotes || '').toLowerCase().includes(v)) return false;
+      if (col === 'artifactSize') {
+        const mb = p.artifactSize ? (p.artifactSize / 1024 / 1024).toFixed(1) : '0.0';
+        if (!mb.includes(v)) return false;
+      }
+      if (col === 'createdAt') {
+        const d = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '';
+        if (!d.toLowerCase().includes(v)) return false;
+      }
+      if (col === 'activated') {
+        if (!(p.activated ? 'yes' : 'no').includes(v)) return false;
+      }
+    }
+    return true;
+  });
+}
+
 export default function PackagesPage() {
   const { token } = useAuth();
   const [packages,    setPackages]    = useState([]);
@@ -14,6 +58,65 @@ export default function PackagesPage() {
   const [statusFilter, setStatusFilter] = useState('ACTIVE');
   const [typeFilter,   setTypeFilter]   = useState('');
   const [actionMsg,    setActionMsg]    = useState('');
+  const [sortCol,        setSortCol]        = useState('');
+  const [sortDir,        setSortDir]        = useState(1);
+  const [activeSearchCol, setActiveSearchCol] = useState(null);
+  const [columnSearches,  setColumnSearches]  = useState({});
+
+  const toggleSort = (col) => {
+    if (sortCol === col) setSortDir(d => -d);
+    else { setSortCol(col); setSortDir(1); }
+  };
+
+  const setSearch = (col, val) =>
+    setColumnSearches(prev => ({ ...prev, [col]: val }));
+
+  const clearSearch = (col) =>
+    setColumnSearches(prev => { const n = { ...prev }; delete n[col]; return n; });
+
+  const SortIcon = ({ col }) => {
+    if (sortCol !== col) return <span className="sort-icon sort-idle">↕</span>;
+    return <span className="sort-icon sort-active">{sortDir === 1 ? '↑' : '↓'}</span>;
+  };
+
+  // Renders a th that is both sortable (via icon) and searchable (via label click)
+  const SearchSortTh = (col, label) => {
+    const val = columnSearches[col] || '';
+    const hasFilter = val.length >= 3;
+
+    if (activeSearchCol === col) {
+      return (
+        <th key={col} className="th-searching">
+          <input
+            autoFocus
+            className="th-search-input"
+            value={val}
+            onChange={e => setSearch(col, e.target.value)}
+            onBlur={() => setActiveSearchCol(null)}
+            onKeyDown={e => {
+              if (e.key === 'Escape') { clearSearch(col); setActiveSearchCol(null); }
+              if (e.key === 'Enter')  { setActiveSearchCol(null); }
+            }}
+            placeholder={`Search ${label}…`}
+          />
+        </th>
+      );
+    }
+
+    return (
+      <th key={col} className="th-sort">
+        <span className="th-label" onClick={() => setActiveSearchCol(col)}>{label}</span>
+        {hasFilter && (
+          <span className="search-chip" onClick={e => { e.stopPropagation(); clearSearch(col); }}>
+            {val}&nbsp;✕
+          </span>
+        )}
+        <span className="sort-icon-btn" onClick={e => { e.stopPropagation(); toggleSort(col); }}>
+          <SortIcon col={col} />
+        </span>
+      </th>
+    );
+  };
 
   const load = async () => {
     setLoading(true);
@@ -135,20 +238,20 @@ export default function PackagesPage() {
           <table>
             <thead>
               <tr>
-                <th>Package</th>
-                <th>Version</th>
+                {SearchSortTh('packageName',  'Package')}
+                {SearchSortTh('version',      'Version')}
                 <th>Device Type</th>
                 <th>Release</th>
                 <th>Status</th>
-                <th>Size</th>
-                <th>Release Notes</th>
-                <th>Created</th>
-                <th>Published</th>
+                {SearchSortTh('artifactSize', 'Size')}
+                {SearchSortTh('releaseNotes', 'Release Notes')}
+                {SearchSortTh('createdAt',    'Created')}
+                {SearchSortTh('activated',    'Published')}
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {packages.map(p => (
+              {filterPackages(sortPackages(packages, sortCol, sortDir), columnSearches).map(p => (
                 <tr key={`${p.packageName}-${p.version}`}>
                   <td><strong>{p.packageName}</strong></td>
                   <td><code>{p.version}</code></td>
@@ -163,26 +266,28 @@ export default function PackagesPage() {
                       {p.activated ? 'Yes' : 'No'}
                     </span>
                   </td>
-                  <td className="action-cell">
-                    {p.status === 'ACTIVE' && (
-                      <>
-                        <button
-                          className={`btn btn-sm ${p.activated ? 'btn-secondary' : 'btn-primary'}`}
-                          onClick={() => toggleActivate(p)}
-                        >
-                          {p.activated ? 'Withdraw' : 'Publish'}
-                        </button>
-                        <button
-                          className="btn btn-sm btn-recall"
-                          onClick={() => recallPackage(p)}
-                        >
-                          Recall
-                        </button>
-                      </>
-                    )}
-                    {p.status === 'RECALLED' && (
-                      <span className="text-sm text-muted">Recalled</span>
-                    )}
+                  <td style={{whiteSpace:'nowrap'}}>
+                    <div className="action-cell">
+                      {p.status === 'ACTIVE' && (
+                        <>
+                          <button
+                            className={`btn btn-sm ${p.activated ? 'btn-secondary' : 'btn-primary'}`}
+                            onClick={() => toggleActivate(p)}
+                          >
+                            {p.activated ? 'Withdraw' : 'Publish'}
+                          </button>
+                          <button
+                            className="btn btn-sm btn-recall"
+                            onClick={() => recallPackage(p)}
+                          >
+                            Recall
+                          </button>
+                        </>
+                      )}
+                      {p.status === 'RECALLED' && (
+                        <span className="text-sm text-muted">Recalled</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

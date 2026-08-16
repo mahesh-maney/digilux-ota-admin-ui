@@ -110,6 +110,7 @@ input:disabled, select:disabled { background: var(--bg); color: var(--text-muted
   display: inline-flex; align-items: center; justify-content: center;
   gap: 6px; padding: 8px 16px; border-radius: var(--radius);
   font-weight: 500; cursor: pointer; border: none; transition: background .15s;
+  white-space: nowrap;
 }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn-primary   { background: var(--primary);   color: #fff; }
@@ -124,7 +125,7 @@ input:disabled, select:disabled { background: var(--bg); color: var(--text-muted
 .btn-warning:hover:not(:disabled)   { background: #ea6c0a; }
 .btn-recall    { background: #ffedd5;          color: #c2410c; border: 1px solid #fed7aa; }
 .btn-recall:hover:not(:disabled)    { background: #fed7aa; }
-.action-cell   { display: flex; gap: 6px; align-items: center; }
+.action-cell   { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
 .btn-sm   { padding: 5px 12px; font-size: 13px; }
 .btn-full { width: 100%; }
 
@@ -149,6 +150,30 @@ th            { text-align: left; padding: 10px 12px; font-size: 12px; font-weig
 td            { padding: 12px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tr:hover td   { background: #f8fafc; }
+.th-sort         { white-space: nowrap; }
+.th-label        { cursor: pointer; user-select: none; }
+.th-label:hover  { color: var(--text); }
+.sort-icon-btn   { cursor: pointer; user-select: none; margin-left: 4px; }
+.sort-icon       { font-size: 11px; }
+.sort-idle       { opacity: .35; }
+.sort-active     { color: var(--primary); opacity: 1; }
+
+.th-searching    { padding: 4px 8px !important; min-width: 130px; }
+.th-search-input {
+  width: 100%; padding: 4px 8px; font-size: 12px; font-weight: 400;
+  text-transform: none; letter-spacing: 0;
+  border: 1px solid var(--primary); border-radius: 4px;
+  background: var(--surface); color: var(--text); outline: none;
+  box-shadow: 0 0 0 2px rgba(37,99,235,.15);
+}
+
+.search-chip {
+  display: inline-block; margin-left: 4px; padding: 1px 5px;
+  font-size: 10px; font-weight: 600; text-transform: none; letter-spacing: 0;
+  background: #dbeafe; color: var(--primary); border-radius: 9999px;
+  cursor: pointer;
+}
+.search-chip:hover { background: #bfdbfe; }
 
 /* ── Filters ────────────────────────────────────────────────────────────── */
 .filters { display: flex; gap: 12px; flex-wrap: wrap; }
