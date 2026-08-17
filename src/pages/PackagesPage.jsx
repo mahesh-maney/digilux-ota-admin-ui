@@ -51,7 +51,7 @@ function filterPackages(pkgs, searches) {
 }
 
 export default function PackagesPage() {
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
   const [packages,    setPackages]    = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState('');
@@ -126,12 +126,12 @@ export default function PackagesPage() {
       const params = new URLSearchParams();
       if (statusFilter) params.set('status', statusFilter);
       if (typeFilter) params.set('deviceType', typeFilter);
-      const { data } = await apiClient(token).get(`/ota/packages?${params}`);
+      const { data } = await apiClient(token, logout).get(`/ota/packages?${params}`);
       const pkgs = data.packages || [];
       setPackages(pkgs);
       logger.info('PackagesPage', 'Packages loaded', { count: pkgs.length, statusFilter, typeFilter });
     } catch (err) {
-      const reason = err.response?.data?.error || 'Failed to load packages';
+      const reason = err?.response?.data?.error || err?.response?.data?.message || 'Failed to load packages';
       logger.error('PackagesPage', 'Failed to load packages', { statusFilter, typeFilter, reason });
       setError(reason);
     } finally {
@@ -157,7 +157,7 @@ export default function PackagesPage() {
     audit.log(action, resource, 'INITIATED');
 
     try {
-      await apiClient(token).patch(
+      await apiClient(token, logout).patch(
         `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
         { activated: newVal },
       );
@@ -167,7 +167,7 @@ export default function PackagesPage() {
       setTimeout(() => setActionMsg(''), 3000);
       load();
     } catch (err) {
-      const reason = err.response?.data?.error || 'Action failed';
+      const reason = err?.response?.data?.error || err?.response?.data?.message || 'Action failed';
       logger.error('PackagesPage', `${action} failed`, { ...resource, reason });
       audit.log(action, resource, 'FAILURE', { reason });
       setError(reason);
@@ -188,7 +188,7 @@ export default function PackagesPage() {
     audit.log('PACKAGE_RECALL', resource, 'INITIATED', { reason });
 
     try {
-      await apiClient(token).patch(
+      await apiClient(token, logout).patch(
         `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
         { recalled: true, recallReason: reason.trim() },
       );
@@ -198,7 +198,7 @@ export default function PackagesPage() {
       setTimeout(() => setActionMsg(''), 5000);
       load();
     } catch (err) {
-      const errReason = err.response?.data?.error || 'Recall failed';
+      const errReason = err?.response?.data?.error || err?.response?.data?.message || 'Recall failed';
       logger.error('PackagesPage', 'PACKAGE_RECALL failed', { ...resource, reason: errReason });
       audit.log('PACKAGE_RECALL', resource, 'FAILURE', { reason: errReason });
       setError(errReason);

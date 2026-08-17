@@ -16,7 +16,7 @@ const DEFAULT_FORM = {
 };
 
 export default function DeploymentsPage() {
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
   const [deployments, setDeployments] = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState('');
@@ -30,12 +30,12 @@ export default function DeploymentsPage() {
     setError('');
     logger.debug('DeploymentsPage', 'Loading deployments');
     try {
-      const { data } = await apiClient(token).get('/ota/deployments');
+      const { data } = await apiClient(token, logout).get('/ota/deployments');
       const jobs = data.jobs || [];
       setDeployments(jobs);
       logger.info('DeploymentsPage', 'Deployments loaded', { count: jobs.length });
     } catch (err) {
-      const reason = err.response?.data?.error || 'Failed to load deployments';
+      const reason = err.response?.data?.error || err.response?.data?.message || 'Failed to load deployments';
       logger.error('DeploymentsPage', 'Failed to load deployments', { reason });
       setError(reason);
     } finally {
@@ -53,7 +53,7 @@ export default function DeploymentsPage() {
     logger.info('DeploymentsPage', 'Creating deployment', resource);
     audit.log('DEPLOYMENT_CREATE', resource, 'INITIATED');
     try {
-      const { data } = await apiClient(token).post('/ota/deployments', form);
+      const { data } = await apiClient(token, logout).post('/ota/deployments', form);
       logger.info('DeploymentsPage', 'Deployment created', { jobId: data.jobId, ...resource });
       audit.log('DEPLOYMENT_CREATE', resource, 'SUCCESS', { jobId: data.jobId });
       setSuccessMsg(`Job created: ${data.jobId}`);
@@ -62,7 +62,7 @@ export default function DeploymentsPage() {
       setForm(DEFAULT_FORM);
       load();
     } catch (err) {
-      const reason = err.response?.data?.error || 'Failed to create deployment';
+      const reason = err.response?.data?.error || err.response?.data?.message || 'Failed to create deployment';
       logger.error('DeploymentsPage', 'Deployment creation failed', { ...resource, reason });
       audit.log('DEPLOYMENT_CREATE', resource, 'FAILURE', { reason });
       setError(reason);

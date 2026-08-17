@@ -68,7 +68,7 @@ async function uploadChunks(chunkUrls, file, chunkSize, onProgress) {
 }
 
 export default function UploadPage() {
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
 
   const [form, setForm] = useState({
     deviceType:   DEVICE_TYPES[0],
@@ -125,7 +125,7 @@ export default function UploadPage() {
     logger.info('UploadPage', 'Upload submitted', resource);
 
     try {
-      const client = apiClient(token);
+      const client = apiClient(token, logout);
 
       // ── Step 1: Initiate upload ───────────────────────────────────────────
       logger.info('UploadPage', 'Step 1: Requesting upload session', { ...resource, checksum, totalSize: file.size });

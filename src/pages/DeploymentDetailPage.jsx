@@ -17,7 +17,7 @@ function compareSemver(a, b) {
 
 export default function DeploymentDetailPage() {
   const { jobId }      = useParams();
-  const { token }      = useAuth();
+  const { token, logout } = useAuth();
   const navigate       = useNavigate();
   const [job,          setJob]          = useState(null);
   const [loading,      setLoading]      = useState(true);
@@ -30,7 +30,7 @@ export default function DeploymentDetailPage() {
     setError('');
     logger.debug('DeploymentDetailPage', 'Loading job', { jobId });
     try {
-      const { data } = await apiClient(token).get(`/ota/deployments/${jobId}`);
+      const { data } = await apiClient(token, logout).get(`/ota/deployments/${jobId}`);
       setJob(data);
       logger.info('DeploymentDetailPage', 'Job loaded', {
         jobId,
@@ -40,7 +40,7 @@ export default function DeploymentDetailPage() {
         deviceCount:  Object.keys(data.deviceStatuses || {}).length,
       });
     } catch (err) {
-      const reason = err.response?.data?.error || 'Failed to load job';
+      const reason = err?.response?.data?.error || err?.response?.data?.message || 'Failed to load job';
       logger.error('DeploymentDetailPage', 'Failed to load job', { jobId, reason });
       setError(reason);
     } finally {
@@ -60,12 +60,12 @@ export default function DeploymentDetailPage() {
     logger.warn('DeploymentDetailPage', 'Abort initiated by user', { jobId });
     audit.log('DEPLOYMENT_ABORT', { jobId }, 'INITIATED');
     try {
-      await apiClient(token).post(`/ota/deployments/${jobId}/abort`);
+      await apiClient(token, logout).post(`/ota/deployments/${jobId}/abort`);
       logger.info('DeploymentDetailPage', 'Abort successful', { jobId });
       audit.log('DEPLOYMENT_ABORT', { jobId }, 'SUCCESS');
       load();
     } catch (err) {
-      const reason = err.response?.data?.error || 'Abort failed';
+      const reason = err?.response?.data?.error || err?.response?.data?.message || 'Abort failed';
       logger.error('DeploymentDetailPage', 'Abort failed', { jobId, reason });
       audit.log('DEPLOYMENT_ABORT', { jobId }, 'FAILURE', { reason });
       setError(reason);
@@ -78,7 +78,7 @@ export default function DeploymentDetailPage() {
     setRollingBack(true);
     setError('');
     try {
-      const { data } = await apiClient(token).get('/ota/packages?status=ACTIVE');
+      const { data } = await apiClient(token, logout).get('/ota/packages?status=ACTIVE');
       const allPkgs  = data.packages || [];
 
       const candidates = allPkgs
@@ -110,7 +110,7 @@ export default function DeploymentDetailPage() {
         fromVersion: job.version, toVersion: prev.version,
       });
 
-      const { data: newJob } = await apiClient(token).post('/ota/deployments', {
+      const { data: newJob } = await apiClient(token, logout).post('/ota/deployments', {
         packageName:  job.packageName,
         version:      prev.version,
         targetType:   job.targetType,
