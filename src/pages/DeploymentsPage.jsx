@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
-import { ROLLOUT_STAGES, TARGET_TYPES } from '../config';
+import BetaUsersPanel from '../components/BetaUsersPanel';
+import { ROLLOUT_STAGES } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
@@ -17,22 +18,29 @@ const DEFAULT_FORM = {
 
 export default function DeploymentsPage() {
   const { token, logout } = useAuth();
-  const [deployments, setDeployments] = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [error,       setError]       = useState('');
-  const [showForm,    setShowForm]    = useState(false);
-  const [form,        setForm]        = useState(DEFAULT_FORM);
-  const [submitting,  setSubmitting]  = useState(false);
-  const [successMsg,  setSuccessMsg]  = useState('');
+  const [deployments,  setDeployments]  = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState('');
+  const [showForm,     setShowForm]     = useState(false);
+  const [showBeta,     setShowBeta]     = useState(false);
+  const [form,         setForm]         = useState(DEFAULT_FORM);
+  const [betaUsers,    setBetaUsers]    = useState([]);
+  const [submitting,   setSubmitting]   = useState(false);
+  const [successMsg,   setSuccessMsg]   = useState('');
 
   const load = async () => {
     setLoading(true);
     setError('');
     logger.debug('DeploymentsPage', 'Loading deployments');
     try {
-      const { data } = await apiClient(token, logout).get('/ota/deployments');
-      const jobs = data.jobs || [];
+      const client = apiClient(token, logout);
+      const [depResp, betaResp] = await Promise.all([
+        client.get('/ota/deployments'),
+        client.get('/ota/beta-users'),
+      ]);
+      const jobs = depResp.data.jobs || [];
       setDeployments(jobs);
+      setBetaUsers(betaResp.data.users || []);
       logger.info('DeploymentsPage', 'Deployments loaded', { count: jobs.length });
     } catch (err) {
       const reason = err.response?.data?.error || err.response?.data?.message || 'Failed to load deployments';
@@ -77,11 +85,18 @@ export default function DeploymentsPage() {
         <h2>Deployments</h2>
         <div className="header-actions">
           <button className="btn btn-secondary btn-sm" onClick={load}>Refresh</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowForm(s => !s)}>
+          <button className="btn btn-secondary btn-sm" onClick={() => { setShowBeta(s => !s); setShowForm(false); }}>
+            {showBeta ? 'Hide Beta Users' : 'Beta Users'}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => { setShowForm(s => !s); setShowBeta(false); }}>
             {showForm ? 'Cancel' : '+ New Deployment'}
           </button>
         </div>
       </div>
+
+      {showBeta && (
+        <BetaUsersPanel token={token} logout={logout} onUsersChange={load} />
+      )}
 
       {showForm && (
         <div className="card mb-4">
@@ -107,35 +122,53 @@ export default function DeploymentsPage() {
                 />
               </div>
               <div className="field">
-                <label>Target Type</label>
-                <select
-                  value={form.targetType}
-                  onChange={e => setForm(f => ({ ...f, targetType: e.target.value }))}
-                >
-                  {TARGET_TYPES.map(t => <option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div className="field">
-                <label>{form.targetType === 'THING' ? 'Device ID' : 'Group Name'}</label>
-                <input
-                  value={form.targetId}
-                  onChange={e => setForm(f => ({ ...f, targetId: e.target.value }))}
-                  placeholder={form.targetType === 'THING' ? 'uuid' : 'DGX-Canary'}
-                  required
-                />
-              </div>
-              <div className="field">
                 <label>Rollout Stage</label>
                 <select
                   value={form.rolloutStage}
-                  onChange={e => setForm(f => ({ ...f, rolloutStage: e.target.value }))}
+                  onChange={e => setForm(f => ({ ...f, rolloutStage: e.target.value, targetId: '' }))}
                 >
                   {ROLLOUT_STAGES.map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
+              <div className="field">
+                {form.rolloutStage === 'BETA' ? (
+                  <>
+                    <label>Beta User</label>
+                    {betaUsers.length === 0 ? (
+                      <p className="text-muted" style={{ margin: '8px 0' }}>
+                        No beta users configured. Add one via <strong>Beta Users</strong>.
+                      </p>
+                    ) : (
+                      <select
+                        value={form.targetId}
+                        onChange={e => setForm(f => ({ ...f, targetId: e.target.value }))}
+                        required
+                      >
+                        <option value="">— Select beta user —</option>
+                        {betaUsers.map(u => (
+                          <option key={u.email} value={u.deviceId}>
+                            {u.email}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <label>Device ID</label>
+                    <input
+                      value={form.targetId}
+                      onChange={e => setForm(f => ({ ...f, targetId: e.target.value }))}
+                      placeholder="uuid"
+                      required
+                    />
+                  </>
+                )}
+              </div>
             </div>
             <div className="form-actions mt-4">
-              <button type="submit" className="btn btn-primary" disabled={submitting}>
+              <button type="submit" className="btn btn-primary"
+                disabled={submitting || (form.rolloutStage === 'BETA' && !form.targetId)}>
                 {submitting ? 'Creating…' : 'Create Deployment'}
               </button>
             </div>

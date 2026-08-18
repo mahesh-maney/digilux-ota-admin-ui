@@ -31,5 +31,4 @@ export const DEVICE_TYPES = (import.meta.env.VITE_DEVICE_TYPES || '')
 
 // ─── Fixed enums (not customer-configurable) ──────────────────────────────
 export const RELEASE_TYPES  = ['PROD', 'UAT'];
-export const ROLLOUT_STAGES = ['CANARY', 'BETA', 'PRODUCTION'];
-export const TARGET_TYPES   = ['THING', 'THING_GROUP'];
+export const ROLLOUT_STAGES = ['CANARY', 'UAT', 'PRODUCTION', 'BETA'];
