@@ -3,20 +3,22 @@ import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
 import ProgressBar from '../components/ProgressBar';
 import StatusBadge from '../components/StatusBadge';
+import { sha256 } from 'js-sha256';
 import { DEVICE_TYPES, RELEASE_TYPES, CHUNK_SIZE } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
-// Compute SHA256 in browser using Web Crypto API
+// Compute SHA256 in browser — uses Web Crypto API when available (HTTPS/localhost),
+// falls back to js-sha256 (pure JS) for HTTP environments.
 async function computeSHA256(file) {
-  if (!crypto?.subtle) {
-    throw new Error('Web Crypto API not available — ensure the app is served over HTTPS or localhost');
-  }
   const buffer = await file.arrayBuffer();
-  const hash   = await crypto.subtle.digest('SHA-256', buffer);
-  return Array.from(new Uint8Array(hash))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+  if (crypto?.subtle) {
+    const hash = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(hash))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  return sha256(buffer);
 }
 
 // Upload chunks with concurrency limit of 3
