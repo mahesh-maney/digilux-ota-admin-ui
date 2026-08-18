@@ -16,6 +16,35 @@ const DEFAULT_FORM = {
   rolloutStage: 'PRODUCTION',
 };
 
+function sortDeployments(jobs, col, dir) {
+  if (!col) return jobs;
+  return [...jobs].sort((a, b) => {
+    let av = a[col], bv = b[col];
+    if (col === 'createdAt') return dir * ((av || 0) - (bv || 0));
+    return dir * (av || '').toString().localeCompare((bv || '').toString());
+  });
+}
+
+function filterDeployments(jobs, searches) {
+  return jobs.filter(d => {
+    for (const [col, val] of Object.entries(searches)) {
+      if (!val || val.length < 3) continue;
+      const v = val.toLowerCase();
+      if (col === 'jobId'       && !(d.jobId       || '').toLowerCase().includes(v)) return false;
+      if (col === 'packageName' && !(d.packageName || '').toLowerCase().includes(v)) return false;
+      if (col === 'version'     && !(d.version     || '').toLowerCase().includes(v)) return false;
+      if (col === 'targetId'    && !(d.targetId    || '').toLowerCase().includes(v)) return false;
+      if (col === 'rolloutStage'&& !(d.rolloutStage|| '').toLowerCase().includes(v)) return false;
+      if (col === 'status'      && !(d.status      || '').toLowerCase().includes(v)) return false;
+      if (col === 'createdAt') {
+        const date = d.createdAt ? new Date(d.createdAt).toLocaleString() : '';
+        if (!date.toLowerCase().includes(v)) return false;
+      }
+    }
+    return true;
+  });
+}
+
 export default function DeploymentsPage() {
   const { token, logout } = useAuth();
   const [deployments,  setDeployments]  = useState([]);
@@ -25,22 +54,70 @@ export default function DeploymentsPage() {
   const [showBeta,     setShowBeta]     = useState(false);
   const [form,         setForm]         = useState(DEFAULT_FORM);
   const [betaUsers,    setBetaUsers]    = useState([]);
-  const [submitting,   setSubmitting]   = useState(false);
-  const [successMsg,   setSuccessMsg]   = useState('');
+  const [submitting,      setSubmitting]      = useState(false);
+  const [successMsg,      setSuccessMsg]      = useState('');
+  const [sortCol,         setSortCol]         = useState('');
+  const [sortDir,         setSortDir]         = useState(1);
+  const [activeSearchCol, setActiveSearchCol] = useState(null);
+  const [columnSearches,  setColumnSearches]  = useState({});
+
+  const toggleSort = (col) => {
+    if (sortCol === col) setSortDir(d => -d);
+    else { setSortCol(col); setSortDir(1); }
+  };
+  const setSearch   = (col, val) => setColumnSearches(prev => ({ ...prev, [col]: val }));
+  const clearSearch = (col)      => setColumnSearches(prev => { const n = { ...prev }; delete n[col]; return n; });
+
+  const SortIcon = ({ col }) => {
+    if (sortCol !== col) return <span className="sort-icon sort-idle">↕</span>;
+    return <span className="sort-icon sort-active">{sortDir === 1 ? '↑' : '↓'}</span>;
+  };
+
+  const SearchSortTh = (col, label) => {
+    const val = columnSearches[col] || '';
+    const hasFilter = val.length >= 3;
+    if (activeSearchCol === col) {
+      return (
+        <th key={col} className="th-searching">
+          <input
+            autoFocus
+            className="th-search-input"
+            value={val}
+            onChange={e => setSearch(col, e.target.value)}
+            onBlur={() => setActiveSearchCol(null)}
+            onKeyDown={e => {
+              if (e.key === 'Escape') { clearSearch(col); setActiveSearchCol(null); }
+              if (e.key === 'Enter')  { setActiveSearchCol(null); }
+            }}
+            placeholder={`Search ${label}…`}
+          />
+        </th>
+      );
+    }
+    return (
+      <th key={col} className="th-sort">
+        <span className="th-label" onClick={() => setActiveSearchCol(col)}>{label}</span>
+        {hasFilter && (
+          <span className="search-chip" onClick={e => { e.stopPropagation(); clearSearch(col); }}>
+            {val}&nbsp;✕
+          </span>
+        )}
+        <span className="sort-icon-btn" onClick={e => { e.stopPropagation(); toggleSort(col); }}>
+          <SortIcon col={col} />
+        </span>
+      </th>
+    );
+  };
 
   const load = async () => {
     setLoading(true);
     setError('');
     logger.debug('DeploymentsPage', 'Loading deployments');
+    const client = apiClient(token, logout);
     try {
-      const client = apiClient(token, logout);
-      const [depResp, betaResp] = await Promise.all([
-        client.get('/ota/deployments'),
-        client.get('/ota/beta-users'),
-      ]);
-      const jobs = depResp.data.jobs || [];
+      const { data } = await client.get('/ota/deployments');
+      const jobs = data.jobs || [];
       setDeployments(jobs);
-      setBetaUsers(betaResp.data.users || []);
       logger.info('DeploymentsPage', 'Deployments loaded', { count: jobs.length });
     } catch (err) {
       const reason = err.response?.data?.error || err.response?.data?.message || 'Failed to load deployments';
@@ -48,6 +125,13 @@ export default function DeploymentsPage() {
       setError(reason);
     } finally {
       setLoading(false);
+    }
+    // Load beta users independently — don't block deployments list if it fails
+    try {
+      const { data } = await client.get('/ota/beta-users');
+      setBetaUsers(data.users || []);
+    } catch (err) {
+      logger.warn('DeploymentsPage', 'Failed to load beta users', { reason: err.message });
     }
   };
 
@@ -188,18 +272,18 @@ export default function DeploymentsPage() {
           <table>
             <thead>
               <tr>
-                <th>Job ID</th>
-                <th>Package</th>
-                <th>Version</th>
-                <th>Target</th>
-                <th>Stage</th>
-                <th>Status</th>
-                <th>Created</th>
+                {SearchSortTh('jobId',        'Job ID')}
+                {SearchSortTh('packageName',  'Package')}
+                {SearchSortTh('version',      'Version')}
+                {SearchSortTh('targetId',     'Target')}
+                {SearchSortTh('rolloutStage', 'Stage')}
+                {SearchSortTh('status',       'Status')}
+                {SearchSortTh('createdAt',    'Created')}
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {deployments.map(d => (
+              {filterDeployments(sortDeployments(deployments, sortCol, sortDir), columnSearches).map(d => (
                 <tr key={d.jobId}>
                   <td>
                     <code className="text-sm" title={d.jobId}>{d.jobId?.slice(-16)}</code>
