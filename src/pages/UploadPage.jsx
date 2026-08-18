@@ -9,6 +9,9 @@ import { audit }  from '../utils/audit';
 
 // Compute SHA256 in browser using Web Crypto API
 async function computeSHA256(file) {
+  if (!crypto?.subtle) {
+    throw new Error('Web Crypto API not available — ensure the app is served over HTTPS or localhost');
+  }
   const buffer = await file.arrayBuffer();
   const hash   = await crypto.subtle.digest('SHA-256', buffer);
   return Array.from(new Uint8Array(hash))
@@ -87,6 +90,11 @@ export default function UploadPage() {
   const handleFile = async (e) => {
     const f = e.target.files[0];
     if (!f) return;
+    if (f.size === 0) {
+      setError('Selected file is empty (0 bytes). Please choose a valid firmware file.');
+      e.target.value = '';
+      return;
+    }
     setFile(f);
     setChecksum('');
     setResult(null);
@@ -108,7 +116,7 @@ export default function UploadPage() {
       logger.info('UploadPage', 'SHA256 computed', { sha256: hash, fileName: f.name });
     } catch (err) {
       logger.error('UploadPage', 'SHA256 computation failed', { fileName: f.name, error: err.message });
-      setError('Failed to compute file checksum');
+      setError(`Failed to compute file checksum: ${err.message}`);
     } finally {
       setHashing(false);
     }
