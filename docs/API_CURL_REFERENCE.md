@@ -8,6 +8,11 @@
 
 Run once and reuse `$ADMIN_TOKEN` / `$USER_TOKEN` throughout.
 
+> **Important:**
+> - Always extract the **`IdToken`**, not the `AccessToken` — API Gateway validates ID tokens only.
+> - Pass the token **without** a `Bearer` prefix in the `Authorization` header.
+> - Tokens expire after **1 hour** — re-run the auth command to get a fresh one.
+
 ```bash
 BASE="https://iot.digilux.co.in/smarthome/api/v1"
 COGNITO="https://cognito-idp.ap-south-1.amazonaws.com/"
