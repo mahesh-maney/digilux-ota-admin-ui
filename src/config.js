@@ -27,6 +27,7 @@ export const DEVICE_TYPES = (import.meta.env.VITE_DEVICE_TYPES || '')
       'Network_controller_zigbee_firmware',
       'Network_controller_Z2M_Firmware',
       'Network_controller_Miscellaneous',
+      'Network_controller_zigbee_stack_firmware',
     ];
 
 // ─── Fixed enums (not customer-configurable) ──────────────────────────────

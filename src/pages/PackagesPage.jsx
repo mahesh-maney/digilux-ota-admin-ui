@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
@@ -19,7 +19,7 @@ function sortPackages(pkgs, col, dir) {
   if (!col) return pkgs;
   return [...pkgs].sort((a, b) => {
     let av = a[col], bv = b[col];
-    if (col === 'version') return dir * compareSemver(av || '', bv || '');
+    if (col === 'fileName') return dir * (av || '').localeCompare(bv || '');
     if (col === 'createdAt' || col === 'artifactSize') return dir * ((av || 0) - (bv || 0));
     if (col === 'activated') return dir * ((av ? 1 : 0) - (bv ? 1 : 0));
     return dir * (av || '').toString().localeCompare((bv || '').toString());
@@ -31,8 +31,7 @@ function filterPackages(pkgs, searches) {
     for (const [col, val] of Object.entries(searches)) {
       if (!val || val.length < 3) continue;
       const v = val.toLowerCase();
-      if (col === 'packageName'  && !(p.packageName  || '').toLowerCase().includes(v)) return false;
-      if (col === 'version'      && !(p.version      || '').toLowerCase().includes(v)) return false;
+      if (col === 'fileName'     && !(p.fileName     || p.packageName || '').toLowerCase().includes(v)) return false;
       if (col === 'releaseNotes' && !(p.releaseNotes || '').toLowerCase().includes(v)) return false;
       if (col === 'artifactSize') {
         const mb = p.artifactSize ? (p.artifactSize / 1024 / 1024).toFixed(1) : '0.0';
@@ -228,6 +227,68 @@ export default function PackagesPage() {
     }
   };
 
+  const [deleteModal, setDeleteModal]           = useState(null); // pkg or null
+  const [deleteReason, setDeleteReason]         = useState('');
+  const [deleteConfirm, setDeleteConfirm]       = useState('');
+  const [deleteForce, setDeleteForce]           = useState(false);
+  const [deleteWorking, setDeleteWorking]       = useState(false);
+  const [deleteModalError, setDeleteModalError] = useState('');
+  const [coolingOff, setCoolingOff]             = useState(null); // {supersededDaysAgo, coolingOffDays}
+  const reasonRef = useRef(null);
+
+  const openDeleteModal = (pkg) => {
+    setDeleteModal(pkg);
+    setDeleteReason('');
+    setDeleteConfirm('');
+    setDeleteForce(false);
+    setDeleteWorking(false);
+    setDeleteModalError('');
+    setCoolingOff(null);
+    setTimeout(() => reasonRef.current?.focus(), 50);
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModal(null);
+    setDeleteModalError('');
+    setCoolingOff(null);
+  };
+
+  const submitDelete = async (force = false) => {
+    const pkg = deleteModal;
+    if (!pkg) return;
+    setDeleteWorking(true);
+    setDeleteModalError('');
+    const resource = { packageName: pkg.packageName, version: pkg.version };
+    logger.info('PackagesPage', 'PACKAGE_DELETE initiated', resource);
+    audit.log('PACKAGE_DELETE', resource, 'INITIATED');
+    try {
+      const resp = await apiClient(token, logout).delete(
+        `/ota/packages/${pkg.packageName}/${pkg.version}`,
+        { data: { reason: deleteReason.trim(), force } },
+      );
+      const msg = resp.data?.message || `${pkg.packageName} v${pkg.version} deleted.`;
+      logger.info('PackagesPage', 'PACKAGE_DELETE successful', resource);
+      audit.log('PACKAGE_DELETE', resource, 'SUCCESS');
+      setActionMsg(msg);
+      setTimeout(() => setActionMsg(''), 5000);
+      closeDeleteModal();
+      load();
+    } catch (err) {
+      const data   = err?.response?.data || {};
+      const reason = data.error || 'Delete failed';
+      if (data.coolingOff) {
+        setCoolingOff({ supersededDaysAgo: data.supersededDaysAgo, coolingOffDays: data.coolingOffDays });
+        setDeleteModalError(reason);
+      } else {
+        setDeleteModalError(reason);
+        logger.error('PackagesPage', 'PACKAGE_DELETE failed', { ...resource, reason });
+        audit.log('PACKAGE_DELETE', resource, 'FAILURE', { reason });
+      }
+    } finally {
+      setDeleteWorking(false);
+    }
+  };
+
   const recallPackage = async (pkg) => {
     const reason = prompt(
       `Recall ${pkg.packageName} v${pkg.version}?\n\n` +
@@ -293,34 +354,30 @@ export default function PackagesPage() {
           <table>
             <thead>
               <tr>
-                {SearchSortTh('packageName',  'Package')}
-                {SearchSortTh('version',      'Version')}
+                {SearchSortTh('fileName',     'File')}
                 <th>Device Type</th>
                 <th>Release</th>
                 <th>Status</th>
+                <th>Action</th>
                 {SearchSortTh('artifactSize', 'Size')}
                 {SearchSortTh('releaseNotes', 'Release Notes')}
                 {SearchSortTh('createdAt',    'Created')}
                 {SearchSortTh('activated',    'Published')}
-                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {filterPackages(sortPackages(packages, sortCol, sortDir), columnSearches).map(p => (
-                <tr key={`${p.packageName}-${p.version}`}>
-                  <td><strong>{p.packageName}</strong></td>
-                  <td><code>{p.version}</code></td>
+                <tr key={`${p.packageName}-${p.version}`} className={
+                    p.status === 'RECALLED'                                          ? 'row-recalled'
+                  : p.status === 'ACTIVE' && (p.releaseType === 'BETA' || p.releaseType === 'UAT') && p.activated ? 'row-uat'
+                  : p.status === 'ACTIVE' && p.activated                             ? 'row-published'
+                  : p.status === 'ACTIVE' && !p.activated                            ? 'row-unpublished'
+                  : ''
+                }>
+                  <td><strong>{p.fileName || p.packageName}</strong></td>
                   <td className="text-sm text-muted">{p.deviceType}</td>
                   <td><span className="badge badge-grey">{RELEASE_TYPE_LABELS[p.releaseType] || p.releaseType}</span></td>
                   <td><StatusBadge status={p.status} /></td>
-                  <td>{p.artifactSize ? `${(p.artifactSize / 1024 / 1024).toFixed(1)} MB` : '—'}</td>
-                  <td className="text-sm text-muted">{p.releaseNotes || '—'}</td>
-                  <td className="text-sm">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}</td>
-                  <td>
-                    <span className={`badge ${p.activated ? 'badge-green' : 'badge-grey'}`}>
-                      {p.activated ? 'Yes' : 'No'}
-                    </span>
-                  </td>
                   <td style={{whiteSpace:'nowrap'}}>
                     <div className="action-cell">
                       {p.status === 'ACTIVE' && (
@@ -360,12 +417,111 @@ export default function PackagesPage() {
                       {p.status === 'RECALLED' && (
                         <span className="text-sm text-muted">Recalled</span>
                       )}
+                      {p.status !== 'ACTIVE' && p.status !== 'DELETED' && (
+                        <button
+                          className="btn btn-sm btn-delete"
+                          onClick={() => openDeleteModal(p)}
+                          title="Permanently delete this package and its S3 artifact"
+                        >
+                          🗑 Delete
+                        </button>
+                      )}
                     </div>
+                  </td>
+                  <td>{p.artifactSize ? `${(p.artifactSize / 1024 / 1024).toFixed(1)} MB` : '—'}</td>
+                  <td className="text-sm text-muted">{p.releaseNotes || '—'}</td>
+                  <td className="text-sm">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}</td>
+                  <td>
+                    <span className={`badge ${p.activated ? 'badge-green' : 'badge-grey'}`}>
+                      {p.activated ? 'Yes' : 'No'}
+                    </span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Delete Modal ───────────────────────────────────────────────── */}
+      {deleteModal && (
+        <div className="modal-backdrop" onClick={closeDeleteModal}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3 className="modal-title">Delete Package</h3>
+
+            <div className="modal-body">
+              <p>
+                You are about to delete <strong>{deleteModal.fileName || deleteModal.packageName}</strong> v<strong>{deleteModal.version}</strong>.
+              </p>
+
+              {deleteModal.status === 'RECALLED' ? (
+                <div className="alert alert-warn" style={{marginBottom:12}}>
+                  ⚠ This package was <strong>recalled</strong>. The S3 artifact will be deleted but the audit record will be <strong>retained</strong> for forensic purposes.
+                </div>
+              ) : (
+                <div className="alert alert-error" style={{marginBottom:12}}>
+                  ⚠ This will permanently delete both the DynamoDB record and the S3 artifact. <strong>This cannot be undone.</strong>
+                </div>
+              )}
+
+              <label className="modal-label">Reason for deletion <span style={{color:'#dc2626'}}>*</span></label>
+              <textarea
+                ref={reasonRef}
+                className="modal-textarea"
+                rows={3}
+                placeholder="e.g. Cleanup after failed test upload"
+                value={deleteReason}
+                onChange={e => setDeleteReason(e.target.value)}
+              />
+
+              <label className="modal-label">
+                Type <code>{deleteModal.version}</code> to confirm
+              </label>
+              <input
+                className="modal-input"
+                placeholder={deleteModal.version}
+                value={deleteConfirm}
+                onChange={e => setDeleteConfirm(e.target.value)}
+              />
+
+              {coolingOff && (
+                <div className="alert alert-warn" style={{marginTop:12}}>
+                  ⏳ This package was superseded <strong>{coolingOff.supersededDaysAgo} day(s)</strong> ago (cooling-off: {coolingOff.coolingOffDays} days).
+                  Offline devices may still need this version.
+                  <label style={{display:'flex', alignItems:'center', gap:8, marginTop:8, cursor:'pointer'}}>
+                    <input
+                      type="checkbox"
+                      checked={deleteForce}
+                      onChange={e => setDeleteForce(e.target.checked)}
+                    />
+                    I understand — force delete anyway
+                  </label>
+                </div>
+              )}
+
+              {deleteModalError && !coolingOff && (
+                <div className="alert alert-error" style={{marginTop:12}}>{deleteModalError}</div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={closeDeleteModal} disabled={deleteWorking}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-delete"
+                disabled={
+                  deleteWorking ||
+                  deleteConfirm !== deleteModal.version ||
+                  !deleteReason.trim() ||
+                  (coolingOff && !deleteForce)
+                }
+                onClick={() => submitDelete(deleteForce)}
+              >
+                {deleteWorking ? 'Deleting…' : '🗑 Delete permanently'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

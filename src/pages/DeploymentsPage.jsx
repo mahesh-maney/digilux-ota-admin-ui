@@ -31,8 +31,7 @@ function filterDeployments(jobs, searches) {
       if (!val || val.length < 3) continue;
       const v = val.toLowerCase();
       if (col === 'jobId'       && !(d.jobId       || '').toLowerCase().includes(v)) return false;
-      if (col === 'packageName' && !(d.packageName || '').toLowerCase().includes(v)) return false;
-      if (col === 'version'     && !(d.version     || '').toLowerCase().includes(v)) return false;
+      if (col === 'packageName' && !(`${d.packageName || ''}-${d.version || ''}`).toLowerCase().includes(v)) return false;
       if (col === 'targetId'    && !(d.targetId    || '').toLowerCase().includes(v)) return false;
       if (col === 'rolloutStage'&& !(d.rolloutStage|| '').toLowerCase().includes(v)) return false;
       if (col === 'status'      && !(d.status      || '').toLowerCase().includes(v)) return false;
@@ -350,8 +349,7 @@ export default function DeploymentsPage() {
             <thead>
               <tr>
                 {SearchSortTh('jobId',        'Job ID')}
-                {SearchSortTh('packageName',  'Package')}
-                {SearchSortTh('version',      'Version')}
+                {SearchSortTh('packageName',  'Package / Version')}
                 {SearchSortTh('targetId',     'Target')}
                 {SearchSortTh('rolloutStage', 'Stage')}
                 {SearchSortTh('status',       'Status')}
@@ -361,13 +359,19 @@ export default function DeploymentsPage() {
             </thead>
             <tbody>
               {filterDeployments(sortDeployments(deployments, sortCol, sortDir), columnSearches).map(d => (
-                <tr key={d.jobId}>
+                <tr key={d.jobId} className={
+                    d.status === 'SUCCEEDED'                        ? 'row-published'
+                  : d.status === 'IN_PROGRESS'                      ? 'row-inprogress'
+                  : d.status === 'QUEUED'                           ? 'row-queued'
+                  : d.status === 'FAILED' || d.status === 'REJECTED'? 'row-recalled'
+                  : d.status === 'CANCELLED'                        ? 'row-cancelled'
+                  : ''
+                }>
                   <td>
                     <code className="text-sm" title={d.jobId}>{d.jobId?.slice(-16)}</code>
                     <button className="btn-copy" title="Copy full Job ID" onClick={() => navigator.clipboard.writeText(d.jobId)}>⎘</button>
                   </td>
-                  <td><strong>{d.packageName}</strong></td>
-                  <td><code>{d.version}</code></td>
+                  <td><strong>{d.packageName}-{d.version}</strong></td>
                   <td className="text-sm">{d.targetType}: {d.targetId}</td>
                   <td><span className="badge badge-grey">{ROLLOUT_STAGE_LABELS[d.rolloutStage] || d.rolloutStage}</span></td>
                   <td><StatusBadge status={d.status} /></td>

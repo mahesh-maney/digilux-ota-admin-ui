@@ -3,7 +3,7 @@ import { useAuth } from '../auth/AuthContext';
 import { LOGO_URL, BRAND_NAME, APP_SUBTITLE, NAV_UPLOAD, NAV_PACKAGES, NAV_DEPLOYMENTS } from '../config';
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
 
   return (
     <nav className="navbar">
@@ -19,12 +19,13 @@ export default function Navbar() {
         <span className="logo-sub">{APP_SUBTITLE}</span>
       </div>
       <div className="navbar-links">
-        <NavLink to="/upload"      className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>{NAV_UPLOAD}</NavLink>
-        <NavLink to="/packages"    className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>{NAV_PACKAGES}</NavLink>
-        <NavLink to="/deployments" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>{NAV_DEPLOYMENTS}</NavLink>
+        <NavLink to="/upload" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>{NAV_UPLOAD}</NavLink>
+        {isAdmin && <NavLink to="/packages"    className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>{NAV_PACKAGES}</NavLink>}
+        {isAdmin && <NavLink to="/deployments" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>{NAV_DEPLOYMENTS}</NavLink>}
       </div>
       <div className="navbar-user">
         <span className="user-email">{user}</span>
+        {!isAdmin && <span className="badge badge-grey" style={{marginRight: 8}}>Upload only</span>}
         <button className="btn btn-ghost btn-sm" onClick={logout}>Sign out</button>
       </div>
     </nav>

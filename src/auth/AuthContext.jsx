@@ -5,10 +5,25 @@ import { audit }  from '../utils/audit';
 
 const AuthContext = createContext(null);
 
+function decodeJwt(token) {
+  try {
+    const payload = token.split('.')[1];
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return {};
+  }
+}
+
+function getIsAdmin(token) {
+  if (!token) return false;
+  const claims = decodeJwt(token);
+  const groups = claims['cognito:groups'] || [];
+  return groups.includes('ota-admin');
+}
+
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => {
-    const saved = localStorage.getItem('ota_token') || '';
-    return saved;
+    return localStorage.getItem('ota_token') || '';
   });
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('ota_user') || '';
@@ -17,6 +32,9 @@ export function AuthProvider({ children }) {
       logger.info('AuthContext', 'Session restored', { user: saved });
     }
     return saved;
+  });
+  const [isAdmin, setIsAdmin] = useState(() => {
+    return getIsAdmin(localStorage.getItem('ota_token') || '');
   });
 
   const login = async (username, password) => {
@@ -46,13 +64,15 @@ export function AuthProvider({ children }) {
 
     const data    = await resp.json();
     const idToken = data.AuthenticationResult.IdToken;
+    const admin   = getIsAdmin(idToken);
     localStorage.setItem('ota_token', idToken);
     localStorage.setItem('ota_user',  username);
     audit.setActor(username);
     setToken(idToken);
     setUser(username);
-    logger.info('AuthContext', 'Login successful', { username });
-    audit.log('LOGIN', { username }, 'SUCCESS');
+    setIsAdmin(admin);
+    logger.info('AuthContext', 'Login successful', { username, isAdmin: admin });
+    audit.log('LOGIN', { username }, 'SUCCESS', { isAdmin: admin });
   };
 
   const logout = () => {
@@ -63,10 +83,11 @@ export function AuthProvider({ children }) {
     audit.setActor(null);
     setToken('');
     setUser('');
+    setIsAdmin(false);
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout, isLoggedIn: !!token }}>
+    <AuthContext.Provider value={{ token, user, isAdmin, login, logout, isLoggedIn: !!token }}>
       {children}
     </AuthContext.Provider>
   );
