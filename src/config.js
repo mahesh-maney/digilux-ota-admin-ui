@@ -30,5 +30,9 @@ export const DEVICE_TYPES = (import.meta.env.VITE_DEVICE_TYPES || '')
     ];
 
 // ─── Fixed enums (not customer-configurable) ──────────────────────────────
-export const RELEASE_TYPES  = ['PROD', 'UAT'];
-export const ROLLOUT_STAGES = ['CANARY', 'UAT', 'PRODUCTION', 'BETA'];
+export const RELEASE_TYPES  = ['PROD', 'BETA', 'CUSTOM'];
+export const ROLLOUT_STAGES = ['CANARY', 'PRODUCTION', 'BETA', 'CUSTOM'];
+
+// Display labels for release types and rollout stages
+export const RELEASE_TYPE_LABELS  = { PROD: 'PROD', BETA: 'Beta (UAT)', CUSTOM: 'CUSTOM' };
+export const ROLLOUT_STAGE_LABELS = { CANARY: 'CANARY', PRODUCTION: 'PRODUCTION', BETA: 'Beta (UAT)', CUSTOM: 'CUSTOM' };

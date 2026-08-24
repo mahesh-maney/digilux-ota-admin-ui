@@ -125,6 +125,10 @@ input:disabled, select:disabled { background: var(--bg); color: var(--text-muted
 .btn-warning:hover:not(:disabled)   { background: #ea6c0a; }
 .btn-recall    { background: #ffedd5;          color: #c2410c; border: 1px solid #fed7aa; }
 .btn-recall:hover:not(:disabled)    { background: #fed7aa; }
+.btn-promote   { background: #dcfce7;          color: #166534; border: 1px solid #bbf7d0; }
+.btn-promote:hover:not(:disabled)   { background: #bbf7d0; }
+.btn-restore   { background: #eff6ff;          color: #1d4ed8; border: 1px solid #bfdbfe; }
+.btn-restore:hover:not(:disabled)   { background: #bfdbfe; }
 .action-cell   { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
 .btn-sm   { padding: 5px 12px; font-size: 13px; }
 .btn-full { width: 100%; }

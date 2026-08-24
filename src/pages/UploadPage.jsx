@@ -4,7 +4,7 @@ import { apiClient } from '../api/client';
 import ProgressBar from '../components/ProgressBar';
 import StatusBadge from '../components/StatusBadge';
 import { sha256 } from 'js-sha256';
-import { DEVICE_TYPES, RELEASE_TYPES, CHUNK_SIZE } from '../config';
+import { DEVICE_TYPES, RELEASE_TYPES, RELEASE_TYPE_LABELS, CHUNK_SIZE } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
@@ -300,7 +300,7 @@ export default function UploadPage() {
                 onChange={e => setForm(f => ({ ...f, releaseType: e.target.value }))}
                 disabled={busy}
               >
-                {RELEASE_TYPES.map(t => <option key={t}>{t}</option>)}
+                {RELEASE_TYPES.map(t => <option key={t} value={t}>{RELEASE_TYPE_LABELS[t] || t}</option>)}
               </select>
             </div>
 

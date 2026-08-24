@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
-import { DEVICE_TYPES } from '../config';
+import { DEVICE_TYPES, RELEASE_TYPE_LABELS } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
@@ -174,6 +174,60 @@ export default function PackagesPage() {
     }
   };
 
+  const promotePackage = async (pkg) => {
+    if (!confirm(
+      `Promote ${pkg.packageName} v${pkg.version} from Beta (UAT) → PROD?\n\n` +
+      `This is permanent — PROD cannot be downgraded. ` +
+      `Lower PROD versions of this package will be superseded.`
+    )) return;
+    const resource = { packageName: pkg.packageName, version: pkg.version };
+    logger.info('PackagesPage', 'PACKAGE_PROMOTE initiated', resource);
+    audit.log('PACKAGE_PROMOTE', resource, 'INITIATED');
+    try {
+      await apiClient(token, logout).patch(
+        `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
+        { promote: true },
+      );
+      logger.info('PackagesPage', 'PACKAGE_PROMOTE successful', resource);
+      audit.log('PACKAGE_PROMOTE', resource, 'SUCCESS');
+      setActionMsg(`${pkg.packageName} v${pkg.version} promoted to PROD.`);
+      setTimeout(() => setActionMsg(''), 4000);
+      load();
+    } catch (err) {
+      const reason = err?.response?.data?.error || err?.response?.data?.message || 'Promote failed';
+      logger.error('PackagesPage', 'PACKAGE_PROMOTE failed', { ...resource, reason });
+      audit.log('PACKAGE_PROMOTE', resource, 'FAILURE', { reason });
+      setError(reason);
+    }
+  };
+
+  const restorePackage = async (pkg) => {
+    if (!confirm(
+      `Restore ${pkg.packageName} v${pkg.version} to ACTIVE?\n\n` +
+      `Any currently ACTIVE ${pkg.releaseType} version of this package will be superseded. ` +
+      `Use this to roll back a buggy release.`
+    )) return;
+    const resource = { packageName: pkg.packageName, version: pkg.version };
+    logger.info('PackagesPage', 'PACKAGE_RESTORE initiated', resource);
+    audit.log('PACKAGE_RESTORE', resource, 'INITIATED');
+    try {
+      await apiClient(token, logout).patch(
+        `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
+        { restore: true },
+      );
+      logger.info('PackagesPage', 'PACKAGE_RESTORE successful', resource);
+      audit.log('PACKAGE_RESTORE', resource, 'SUCCESS');
+      setActionMsg(`${pkg.packageName} v${pkg.version} restored to ACTIVE.`);
+      setTimeout(() => setActionMsg(''), 4000);
+      load();
+    } catch (err) {
+      const reason = err?.response?.data?.error || err?.response?.data?.message || 'Restore failed';
+      logger.error('PackagesPage', 'PACKAGE_RESTORE failed', { ...resource, reason });
+      audit.log('PACKAGE_RESTORE', resource, 'FAILURE', { reason });
+      setError(reason);
+    }
+  };
+
   const recallPackage = async (pkg) => {
     const reason = prompt(
       `Recall ${pkg.packageName} v${pkg.version}?\n\n` +
@@ -216,6 +270,7 @@ export default function PackagesPage() {
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="">All statuses</option>
           <option value="ACTIVE">ACTIVE</option>
+          <option value="SUPERSEDED">SUPERSEDED</option>
           <option value="PENDING">PENDING</option>
           <option value="CORRUPTED">CORRUPTED</option>
           <option value="RECALLED">RECALLED</option>
@@ -256,7 +311,7 @@ export default function PackagesPage() {
                   <td><strong>{p.packageName}</strong></td>
                   <td><code>{p.version}</code></td>
                   <td className="text-sm text-muted">{p.deviceType}</td>
-                  <td><span className="badge badge-grey">{p.releaseType}</span></td>
+                  <td><span className="badge badge-grey">{RELEASE_TYPE_LABELS[p.releaseType] || p.releaseType}</span></td>
                   <td><StatusBadge status={p.status} /></td>
                   <td>{p.artifactSize ? `${(p.artifactSize / 1024 / 1024).toFixed(1)} MB` : '—'}</td>
                   <td className="text-sm text-muted">{p.releaseNotes || '—'}</td>
@@ -276,6 +331,15 @@ export default function PackagesPage() {
                           >
                             {p.activated ? 'Withdraw' : 'Publish'}
                           </button>
+                          {p.releaseType === 'BETA' && (
+                            <button
+                              className="btn btn-sm btn-promote"
+                              onClick={() => promotePackage(p)}
+                              title="Promote Beta (UAT) → PROD (permanent)"
+                            >
+                              → PROD
+                            </button>
+                          )}
                           <button
                             className="btn btn-sm btn-recall"
                             onClick={() => recallPackage(p)}
@@ -283,6 +347,15 @@ export default function PackagesPage() {
                             Recall
                           </button>
                         </>
+                      )}
+                      {p.status === 'SUPERSEDED' && p.releaseType !== 'CUSTOM' && (
+                        <button
+                          className="btn btn-sm btn-restore"
+                          onClick={() => restorePackage(p)}
+                          title="Restore this version to ACTIVE (rollback)"
+                        >
+                          ↩ Restore
+                        </button>
                       )}
                       {p.status === 'RECALLED' && (
                         <span className="text-sm text-muted">Recalled</span>

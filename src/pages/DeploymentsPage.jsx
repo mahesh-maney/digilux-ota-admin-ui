@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
 import BetaUsersPanel from '../components/BetaUsersPanel';
-import { ROLLOUT_STAGES } from '../config';
+import { ROLLOUT_STAGES, ROLLOUT_STAGE_LABELS, RELEASE_TYPE_LABELS } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
@@ -53,7 +53,10 @@ export default function DeploymentsPage() {
   const [showForm,     setShowForm]     = useState(false);
   const [showBeta,     setShowBeta]     = useState(false);
   const [form,         setForm]         = useState(DEFAULT_FORM);
-  const [betaUsers,    setBetaUsers]    = useState([]);
+  const [betaUsers,        setBetaUsers]        = useState([]);
+  const [selectedBetaIds,  setSelectedBetaIds]  = useState([]);
+  const [customDeviceIds,  setCustomDeviceIds]  = useState([]);
+  const [customDeviceInput,setCustomDeviceInput]= useState('');
   const [submitting,      setSubmitting]      = useState(false);
   const [successMsg,      setSuccessMsg]      = useState('');
   const [sortCol,         setSortCol]         = useState('');
@@ -129,7 +132,9 @@ export default function DeploymentsPage() {
     // Load beta users independently — don't block deployments list if it fails
     try {
       const { data } = await client.get('/ota/beta-users');
-      setBetaUsers(data.users || []);
+      const users = data.users || [];
+      setBetaUsers(users);
+      setSelectedBetaIds(users.map(u => u.deviceId));
     } catch (err) {
       logger.warn('DeploymentsPage', 'Failed to load beta users', { reason: err.message });
     }
@@ -141,11 +146,17 @@ export default function DeploymentsPage() {
     e.preventDefault();
     setSubmitting(true);
     setError('');
-    const resource = { packageName: form.packageName, version: form.version, targetType: form.targetType, targetId: form.targetId, rolloutStage: form.rolloutStage };
+    // For BETA/CUSTOM, send targetIds — backend creates one job targeting all of them
+    const payload = form.rolloutStage === 'BETA'
+      ? { packageName: form.packageName, version: form.version, rolloutStage: form.rolloutStage, targetIds: selectedBetaIds }
+      : form.rolloutStage === 'CUSTOM'
+      ? { packageName: form.packageName, version: form.version, rolloutStage: form.rolloutStage, targetIds: customDeviceIds }
+      : form;
+    const resource = { packageName: form.packageName, version: form.version, rolloutStage: form.rolloutStage, ...(form.rolloutStage !== 'BETA' && { targetType: form.targetType, targetId: form.targetId }) };
     logger.info('DeploymentsPage', 'Creating deployment', resource);
     audit.log('DEPLOYMENT_CREATE', resource, 'INITIATED');
     try {
-      const { data } = await apiClient(token, logout).post('/ota/deployments', form);
+      const { data } = await apiClient(token, logout).post('/ota/deployments', payload);
       logger.info('DeploymentsPage', 'Deployment created', { jobId: data.jobId, ...resource });
       audit.log('DEPLOYMENT_CREATE', resource, 'SUCCESS', { jobId: data.jobId });
       setSuccessMsg(`Job created: ${data.jobId}`);
@@ -211,30 +222,94 @@ export default function DeploymentsPage() {
                   value={form.rolloutStage}
                   onChange={e => setForm(f => ({ ...f, rolloutStage: e.target.value, targetId: '' }))}
                 >
-                  {ROLLOUT_STAGES.map(s => <option key={s}>{s}</option>)}
+                  {ROLLOUT_STAGES.map(s => <option key={s} value={s}>{ROLLOUT_STAGE_LABELS[s] || s}</option>)}
                 </select>
               </div>
               <div className="field">
                 {form.rolloutStage === 'BETA' ? (
                   <>
-                    <label>Beta User</label>
+                    <label>Beta Users</label>
                     {betaUsers.length === 0 ? (
                       <p className="text-muted" style={{ margin: '8px 0' }}>
                         No beta users configured. Add one via <strong>Beta Users</strong>.
                       </p>
                     ) : (
-                      <select
-                        value={form.targetId}
-                        onChange={e => setForm(f => ({ ...f, targetId: e.target.value }))}
-                        required
-                      >
-                        <option value="">— Select beta user —</option>
-                        {betaUsers.map(u => (
-                          <option key={u.email} value={u.deviceId}>
-                            {u.email}
-                          </option>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedBetaIds.length === betaUsers.length}
+                            onChange={e => setSelectedBetaIds(e.target.checked ? betaUsers.map(u => u.deviceId) : [])}
+                          />
+                          Select All ({betaUsers.length} users)
+                        </label>
+                        <hr style={{ margin: '2px 0', borderColor: 'var(--border, #333)' }} />
+                        <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', paddingRight: '4px' }}>
+                          {betaUsers.map(u => (
+                            <label key={u.email} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedBetaIds.includes(u.deviceId)}
+                                onChange={e => setSelectedBetaIds(prev =>
+                                  e.target.checked ? [...prev, u.deviceId] : prev.filter(id => id !== u.deviceId)
+                                )}
+                              />
+                              {u.email}
+                            </label>
+                          ))}
+                        </div>
+                        <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary, #aaa)' }}>
+                          {selectedBetaIds.length} of {betaUsers.length} selected
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : form.rolloutStage === 'CUSTOM' ? (
+                  <>
+                    <label>Device IDs (DUIDs)</label>
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                      <input
+                        value={customDeviceInput}
+                        onChange={e => setCustomDeviceInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const id = customDeviceInput.trim();
+                            if (id && !customDeviceIds.includes(id))
+                              setCustomDeviceIds(prev => [...prev, id]);
+                            setCustomDeviceInput('');
+                          }
+                        }}
+                        placeholder="Paste device ID and press Enter"
+                        style={{ flex: 1 }}
+                      />
+                      <button type="button" className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          const id = customDeviceInput.trim();
+                          if (id && !customDeviceIds.includes(id))
+                            setCustomDeviceIds(prev => [...prev, id]);
+                          setCustomDeviceInput('');
+                        }}>
+                        Add
+                      </button>
+                    </div>
+                    {customDeviceIds.length > 0 && (
+                      <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {customDeviceIds.map(id => (
+                          <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px',
+                            background: 'var(--bg-secondary, #2a2a2a)', border: '1px solid var(--border, #444)',
+                            borderRadius: '4px', padding: '2px 8px', fontSize: '0.8rem' }}>
+                            <code>{id}</code>
+                            <button type="button" onClick={() => setCustomDeviceIds(prev => prev.filter(d => d !== id))}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', padding: '0 2px' }}>✕</button>
+                          </span>
                         ))}
-                      </select>
+                      </div>
+                    )}
+                    {customDeviceIds.length > 0 && (
+                      <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary, #aaa)' }}>
+                        {customDeviceIds.length} device{customDeviceIds.length > 1 ? 's' : ''} selected
+                      </p>
                     )}
                   </>
                 ) : (
@@ -252,7 +327,9 @@ export default function DeploymentsPage() {
             </div>
             <div className="form-actions mt-4">
               <button type="submit" className="btn btn-primary"
-                disabled={submitting || (form.rolloutStage === 'BETA' && !form.targetId)}>
+                disabled={submitting ||
+                  (form.rolloutStage === 'BETA'   && selectedBetaIds.length  === 0) ||
+                  (form.rolloutStage === 'CUSTOM' && customDeviceIds.length  === 0)}>
                 {submitting ? 'Creating…' : 'Create Deployment'}
               </button>
             </div>
@@ -292,7 +369,7 @@ export default function DeploymentsPage() {
                   <td><strong>{d.packageName}</strong></td>
                   <td><code>{d.version}</code></td>
                   <td className="text-sm">{d.targetType}: {d.targetId}</td>
-                  <td><span className="badge badge-grey">{d.rolloutStage}</span></td>
+                  <td><span className="badge badge-grey">{ROLLOUT_STAGE_LABELS[d.rolloutStage] || d.rolloutStage}</span></td>
                   <td><StatusBadge status={d.status} /></td>
                   <td className="text-sm">{d.createdAt ? new Date(d.createdAt).toLocaleString() : '—'}</td>
                   <td>

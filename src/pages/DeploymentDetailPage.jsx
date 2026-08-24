@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
+import { ROLLOUT_STAGE_LABELS } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
@@ -189,7 +190,7 @@ export default function DeploymentDetailPage() {
               </div>
               <div className="detail-row">
                 <span className="detail-label">Rollout Stage</span>
-                <span><span className="badge badge-grey">{job.rolloutStage}</span></span>
+                <span><span className="badge badge-grey">{ROLLOUT_STAGE_LABELS[job.rolloutStage] || job.rolloutStage}</span></span>
               </div>
               <div className="detail-row">
                 <span className="detail-label">Status</span>
