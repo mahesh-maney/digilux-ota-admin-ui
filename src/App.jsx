@@ -19,7 +19,7 @@ function AppRoutes() {
         <Routes>
           <Route path="/"                   element={<Navigate to="/upload" replace />} />
           <Route path="/upload"             element={<UploadPage />} />
-          {isAdmin && <Route path="/packages"           element={<PackagesPage />} />}
+          <Route path="/packages"           element={<PackagesPage />} />
           {isAdmin && <Route path="/deployments"        element={<DeploymentsPage />} />}
           {isAdmin && <Route path="/deployments/:jobId" element={<DeploymentDetailPage />} />}
           <Route path="*"                   element={<Navigate to="/upload" replace />} />

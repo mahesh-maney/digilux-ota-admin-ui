@@ -50,7 +50,7 @@ function filterPackages(pkgs, searches) {
 }
 
 export default function PackagesPage() {
-  const { token, logout } = useAuth();
+  const { token, logout, isAdmin } = useAuth();
   const [packages,    setPackages]    = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState('');
@@ -380,7 +380,7 @@ export default function PackagesPage() {
                   <td><StatusBadge status={p.status} /></td>
                   <td style={{whiteSpace:'nowrap'}}>
                     <div className="action-cell">
-                      {p.status === 'ACTIVE' && (
+                      {isAdmin && p.status === 'ACTIVE' && (
                         <>
                           <button
                             className={`btn btn-sm ${p.activated ? 'btn-secondary' : 'btn-primary'}`}
@@ -405,7 +405,7 @@ export default function PackagesPage() {
                           </button>
                         </>
                       )}
-                      {p.status === 'SUPERSEDED' && p.releaseType !== 'CUSTOM' && (
+                      {isAdmin && p.status === 'SUPERSEDED' && p.releaseType !== 'CUSTOM' && (
                         <button
                           className="btn btn-sm btn-restore"
                           onClick={() => restorePackage(p)}
@@ -417,7 +417,7 @@ export default function PackagesPage() {
                       {p.status === 'RECALLED' && (
                         <span className="text-sm text-muted">Recalled</span>
                       )}
-                      {p.status !== 'ACTIVE' && p.status !== 'DELETED' && (
+                      {isAdmin && p.status !== 'ACTIVE' && p.status !== 'DELETED' && (
                         <button
                           className="btn btn-sm btn-delete"
                           onClick={() => openDeleteModal(p)}
