@@ -46,12 +46,13 @@ function filterDeployments(jobs, searches) {
 
 export default function DeploymentsPage() {
   const { token, logout } = useAuth();
-  const [deployments,  setDeployments]  = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [error,        setError]        = useState('');
-  const [showForm,     setShowForm]     = useState(false);
-  const [showBeta,     setShowBeta]     = useState(false);
-  const [form,         setForm]         = useState(DEFAULT_FORM);
+  const [deployments,    setDeployments]    = useState([]);
+  const [activePackages, setActivePackages] = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [error,          setError]          = useState('');
+  const [showForm,       setShowForm]       = useState(false);
+  const [showBeta,       setShowBeta]       = useState(false);
+  const [form,           setForm]           = useState(DEFAULT_FORM);
   const [betaUsers,        setBetaUsers]        = useState([]);
   const [selectedBetaIds,  setSelectedBetaIds]  = useState([]);
   const [customDeviceIds,  setCustomDeviceIds]  = useState([]);
@@ -117,9 +118,13 @@ export default function DeploymentsPage() {
     logger.debug('DeploymentsPage', 'Loading deployments');
     const client = apiClient(token, logout);
     try {
-      const { data } = await client.get('/ota/deployments');
-      const jobs = data.jobs || [];
+      const [deploymentsRes, packagesRes] = await Promise.all([
+        client.get('/ota/deployments'),
+        client.get('/ota/packages?status=ACTIVE'),
+      ]);
+      const jobs = deploymentsRes.data.jobs || [];
       setDeployments(jobs);
+      setActivePackages(packagesRes.data.packages || []);
       logger.info('DeploymentsPage', 'Deployments loaded', { count: jobs.length });
     } catch (err) {
       const reason = err.response?.data?.error || err.response?.data?.message || 'Failed to load deployments';
@@ -199,21 +204,34 @@ export default function DeploymentsPage() {
             <div className="form-grid">
               <div className="field">
                 <label>Package Name</label>
-                <input
+                <select
                   value={form.packageName}
-                  onChange={e => setForm(f => ({ ...f, packageName: e.target.value }))}
-                  placeholder="HomeAssistantUtility"
+                  onChange={e => setForm(f => ({ ...f, packageName: e.target.value, version: '' }))}
                   required
-                />
+                >
+                  <option value="">— Select package —</option>
+                  {[...new Set(activePackages.map(p => p.packageName))].sort().map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
               </div>
               <div className="field">
                 <label>Version</label>
-                <input
+                <select
                   value={form.version}
                   onChange={e => setForm(f => ({ ...f, version: e.target.value }))}
-                  placeholder="1.2.3"
                   required
-                />
+                  disabled={!form.packageName}
+                >
+                  <option value="">— Select version —</option>
+                  {activePackages
+                    .filter(p => p.packageName === form.packageName)
+                    .sort((a, b) => b.version.localeCompare(a.version))
+                    .map(p => (
+                      <option key={p.version} value={p.version}>{p.version}</option>
+                    ))
+                  }
+                </select>
               </div>
               <div className="field">
                 <label>Rollout Stage</label>
