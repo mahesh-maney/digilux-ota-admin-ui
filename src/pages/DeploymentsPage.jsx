@@ -120,11 +120,15 @@ export default function DeploymentsPage() {
     try {
       const [deploymentsRes, packagesRes] = await Promise.all([
         client.get('/ota/deployments'),
-        client.get('/ota/packages?status=ACTIVE'),
+        client.get('/ota/packages'),
       ]);
       const jobs = deploymentsRes.data.jobs || [];
-      setDeployments(jobs);
-      setActivePackages(packagesRes.data.packages || []);
+      const allPkgs = packagesRes.data.packages || [];
+      const deletedKeys = new Set(
+        allPkgs.filter(p => p.status === 'DELETED').map(p => `${p.packageName}@${p.version}`)
+      );
+      setDeployments(jobs.filter(d => !deletedKeys.has(`${d.packageName}@${d.version}`)));
+      setActivePackages(allPkgs.filter(p => p.status === 'ACTIVE'));
       logger.info('DeploymentsPage', 'Deployments loaded', { count: jobs.length });
     } catch (err) {
       const reason = err.response?.data?.error || err.response?.data?.message || 'Failed to load deployments';

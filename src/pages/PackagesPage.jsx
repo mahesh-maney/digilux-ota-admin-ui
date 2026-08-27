@@ -126,7 +126,7 @@ export default function PackagesPage() {
       if (statusFilter) params.set('status', statusFilter);
       if (typeFilter) params.set('deviceType', typeFilter);
       const { data } = await apiClient(token, logout).get(`/ota/packages?${params}`);
-      const pkgs = data.packages || [];
+      const pkgs = (data.packages || []).filter(p => p.status !== 'DELETED');
       setPackages(pkgs);
       logger.info('PackagesPage', 'Packages loaded', { count: pkgs.length, statusFilter, typeFilter });
     } catch (err) {
