@@ -113,13 +113,13 @@ export default function BetaUsersPanel({ token, logout }) {
     }
   };
 
-  const handleRemove = async (userEmail) => {
-    if (!window.confirm(`Remove ${userEmail} from beta users?`)) return;
+  const handleRemove = async (user) => {
+    if (!window.confirm(`Remove ${user.email} from beta users?`)) return;
     setError('');
     setSuccess('');
     try {
-      await client.delete(`/ota/beta-users/${encodeURIComponent(userEmail)}`);
-      setSuccess(`${userEmail} removed`);
+      await client.delete(`/ota/beta-users/${encodeURIComponent(user.userId)}`);
+      setSuccess(`${user.email} removed`);
       await load();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to remove beta user');
@@ -171,7 +171,7 @@ export default function BetaUsersPanel({ token, logout }) {
             </thead>
             <tbody>
               {filterUsers(sortUsers(users, sortCol, sortDir), columnSearches).map(u => (
-                <tr key={u.email}>
+                <tr key={u.userId}>
                   <td>{u.email}</td>
                   <td><code className="text-sm" title={u.deviceId}>{u.deviceId?.slice(0, 8)}…</code></td>
                   <td><code className="text-sm">{u.thingName}</code></td>
@@ -179,7 +179,7 @@ export default function BetaUsersPanel({ token, logout }) {
                   <td className="text-sm">{u.addedBy}</td>
                   <td>
                     <button className="btn btn-sm btn-ghost" style={{ color: 'var(--red)' }}
-                      onClick={() => handleRemove(u.email)}>
+                      onClick={() => handleRemove(u)}>
                       Remove
                     </button>
                   </td>
