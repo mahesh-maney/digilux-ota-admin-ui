@@ -53,8 +53,9 @@ export default function DeploymentsPage() {
   const [showForm,       setShowForm]       = useState(false);
   const [showBeta,       setShowBeta]       = useState(false);
   const [form,           setForm]           = useState(DEFAULT_FORM);
-  const [betaUsers,        setBetaUsers]        = useState([]);
-  const [selectedBetaIds,  setSelectedBetaIds]  = useState([]);
+  const [betaUsers,             setBetaUsers]             = useState([]);
+  const [selectedBetaEmails,    setSelectedBetaEmails]    = useState(new Set());
+  const [selectedDevicePerUser, setSelectedDevicePerUser] = useState({});
   const [customDeviceIds,  setCustomDeviceIds]  = useState([]);
   const [customDeviceInput,setCustomDeviceInput]= useState('');
   const [submitting,      setSubmitting]      = useState(false);
@@ -63,6 +64,19 @@ export default function DeploymentsPage() {
   const [sortDir,         setSortDir]         = useState(1);
   const [activeSearchCol, setActiveSearchCol] = useState(null);
   const [columnSearches,  setColumnSearches]  = useState({});
+
+  // Group betaUsers by email (one user may have multiple device IDs)
+  const betaUserGroups = Object.values(
+    betaUsers.reduce((acc, u) => {
+      if (!acc[u.email]) acc[u.email] = { ...u, deviceIds: [] };
+      acc[u.email].deviceIds.push(u.deviceId);
+      return acc;
+    }, {})
+  );
+  // Derive the flat list of selected device IDs for the payload
+  const selectedBetaIds = [...selectedBetaEmails]
+    .map(email => selectedDevicePerUser[email])
+    .filter(Boolean);
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => -d);
@@ -142,7 +156,15 @@ export default function DeploymentsPage() {
       const { data } = await client.get('/ota/beta-users');
       const users = data.users || [];
       setBetaUsers(users);
-      setSelectedBetaIds(users.map(u => u.deviceId));
+      const devicesByEmail = users.reduce((acc, u) => {
+        if (!acc[u.email]) acc[u.email] = [];
+        acc[u.email].push(u.deviceId);
+        return acc;
+      }, {});
+      setSelectedBetaEmails(new Set(Object.keys(devicesByEmail)));
+      setSelectedDevicePerUser(
+        Object.fromEntries(Object.entries(devicesByEmail).map(([email, ids]) => [email, ids[0]]))
+      );
     } catch (err) {
       logger.warn('DeploymentsPage', 'Failed to load beta users', { reason: err.message });
     }
@@ -250,7 +272,7 @@ export default function DeploymentsPage() {
                 {form.rolloutStage === 'BETA' ? (
                   <>
                     <label>Beta Users</label>
-                    {betaUsers.length === 0 ? (
+                    {betaUserGroups.length === 0 ? (
                       <p className="text-muted" style={{ margin: '8px 0' }}>
                         No beta users configured. Add one via <strong>Beta Users</strong>.
                       </p>
@@ -259,28 +281,46 @@ export default function DeploymentsPage() {
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer' }}>
                           <input
                             type="checkbox"
-                            checked={selectedBetaIds.length === betaUsers.length}
-                            onChange={e => setSelectedBetaIds(e.target.checked ? betaUsers.map(u => u.deviceId) : [])}
+                            checked={selectedBetaEmails.size === betaUserGroups.length}
+                            onChange={e => setSelectedBetaEmails(
+                              e.target.checked ? new Set(betaUserGroups.map(u => u.email)) : new Set()
+                            )}
                           />
-                          Select All ({betaUsers.length} users)
+                          Select All ({betaUserGroups.length} users)
                         </label>
                         <hr style={{ margin: '2px 0', borderColor: 'var(--border, #333)' }} />
                         <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', paddingRight: '4px' }}>
-                          {betaUsers.map(u => (
-                            <label key={u.email} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedBetaIds.includes(u.deviceId)}
-                                onChange={e => setSelectedBetaIds(prev =>
-                                  e.target.checked ? [...prev, u.deviceId] : prev.filter(id => id !== u.deviceId)
-                                )}
-                              />
-                              {u.email}
-                            </label>
+                          {betaUserGroups.map(u => (
+                            <div key={u.email} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flex: 1 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedBetaEmails.has(u.email)}
+                                  onChange={e => setSelectedBetaEmails(prev => {
+                                    const next = new Set(prev);
+                                    e.target.checked ? next.add(u.email) : next.delete(u.email);
+                                    return next;
+                                  })}
+                                />
+                                {u.email}
+                              </label>
+                              {u.deviceIds.length > 1 && (
+                                <select
+                                  value={selectedDevicePerUser[u.email] || u.deviceIds[0]}
+                                  onChange={e => setSelectedDevicePerUser(prev => ({ ...prev, [u.email]: e.target.value }))}
+                                  style={{ fontSize: '0.78rem', padding: '2px 4px' }}
+                                  title="Select device ID for this user"
+                                >
+                                  {u.deviceIds.map(id => (
+                                    <option key={id} value={id}>{id.slice(0, 8)}…</option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
                           ))}
                         </div>
                         <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary, #aaa)' }}>
-                          {selectedBetaIds.length} of {betaUsers.length} selected
+                          {selectedBetaEmails.size} of {betaUserGroups.length} selected
                         </p>
                       </div>
                     )}

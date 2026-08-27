@@ -79,41 +79,71 @@ export default function DeploymentDetailPage() {
     setRollingBack(true);
     setError('');
     try {
-      const { data } = await apiClient(token, logout).get('/ota/packages?status=ACTIVE');
-      const allPkgs  = data.packages || [];
+      const client = apiClient(token, logout);
 
-      const candidates = allPkgs
-        .filter(p => p.packageName === job.packageName && p.activated && p.version !== job.version)
-        .sort((a, b) => compareSemver(b.version, a.version));
+      // Step 1: scan deployment history — find the most recent SUCCEEDED job
+      // for the same package + target with a different version.
+      const { data: deplData } = await client.get('/ota/deployments');
+      const history = (deplData.jobs || [])
+        .filter(j =>
+          j.packageName === job.packageName &&
+          j.targetId    === job.targetId    &&
+          j.status      === 'SUCCEEDED'     &&
+          j.version     !== job.version
+        )
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-      const prev = candidates[0];
+      let rollbackVersion = history[0]?.version ?? null;
 
-      if (!prev) {
-        alert(`No previous active version found for ${job.packageName}.\nUpload and publish an earlier version first.`);
+      // Step 2: fallback — if no succeeded history, pick the highest ACTIVE version
+      if (!rollbackVersion) {
+        const { data: pkgData } = await client.get('/ota/packages?status=ACTIVE');
+        const candidates = (pkgData.packages || [])
+          .filter(p => p.packageName === job.packageName && p.activated && p.version !== job.version)
+          .sort((a, b) => compareSemver(b.version, a.version));
+        rollbackVersion = candidates[0]?.version ?? null;
+      }
+
+      if (!rollbackVersion) {
+        alert(
+          `No previous version found to roll back to for ${job.packageName}.\n` +
+          `Upload and publish an earlier version first.`
+        );
         return;
       }
 
+      // Step 3: verify the rollback version is still ACTIVE
+      const { data: pkg } = await client.get(`/ota/packages/${job.packageName}/${rollbackVersion}`);
+      if (pkg.status !== 'ACTIVE') {
+        alert(
+          `v${rollbackVersion} is currently ${pkg.status} and cannot be deployed.\n\n` +
+          `Go to Packages → restore v${rollbackVersion} to ACTIVE first, then retry the rollback.`
+        );
+        return;
+      }
+
+      const fromHistory = history[0]?.version === rollbackVersion;
       const confirmed = confirm(
         `Create rollback deployment?\n\n` +
-        `Package:  ${job.packageName}\n` +
-        `From:     v${job.version}\n` +
-        `To:       v${prev.version}\n` +
-        `Target:   ${job.targetType}: ${job.targetId}\n` +
-        `Stage:    ${job.rolloutStage}`,
+        `Package : ${job.packageName}\n` +
+        `From    : v${job.version}\n` +
+        `To      : v${rollbackVersion}${fromHistory ? '  (last successfully deployed version)' : ''}\n` +
+        `Target  : ${job.targetType}: ${job.targetId}\n` +
+        `Stage   : ${job.rolloutStage}`
       );
       if (!confirmed) return;
 
       logger.info('DeploymentDetailPage', 'Rollback initiated', {
         jobId, packageName: job.packageName,
-        fromVersion: job.version, toVersion: prev.version,
+        fromVersion: job.version, toVersion: rollbackVersion, fromHistory,
       });
       audit.log('DEPLOYMENT_ROLLBACK', { jobId, packageName: job.packageName }, 'INITIATED', {
-        fromVersion: job.version, toVersion: prev.version,
+        fromVersion: job.version, toVersion: rollbackVersion,
       });
 
-      const { data: newJob } = await apiClient(token, logout).post('/ota/deployments', {
+      const { data: newJob } = await client.post('/ota/deployments', {
         packageName:  job.packageName,
-        version:      prev.version,
+        version:      rollbackVersion,
         targetType:   job.targetType,
         targetId:     job.targetId,
         rolloutStage: job.rolloutStage,
@@ -121,7 +151,7 @@ export default function DeploymentDetailPage() {
 
       logger.info('DeploymentDetailPage', 'Rollback deployment created', { newJobId: newJob.jobId });
       audit.log('DEPLOYMENT_ROLLBACK', { jobId, packageName: job.packageName }, 'SUCCESS', {
-        newJobId: newJob.jobId, toVersion: prev.version,
+        newJobId: newJob.jobId, toVersion: rollbackVersion,
       });
 
       navigate(`/deployments/${newJob.jobId}`);
@@ -217,6 +247,11 @@ export default function DeploymentDetailPage() {
           {job.deviceStatuses && Object.keys(job.deviceStatuses).length > 0 && (
             <div className="card">
               <h3>Device Progress</h3>
+              {job.createdAt && (
+                <p className="text-sm text-muted" style={{ marginTop: '-4px', marginBottom: '12px' }}>
+                  Deployment created: {new Date(job.createdAt).toLocaleString()}
+                </p>
+              )}
               <div className="table-wrap">
                 <table>
                   <thead>

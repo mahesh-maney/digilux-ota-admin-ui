@@ -44,6 +44,8 @@ function filterPackages(pkgs, searches) {
       if (col === 'activated') {
         if (!(p.activated ? 'yes' : 'no').includes(v)) return false;
       }
+      if (col === 'status' && !(p.status || '').toLowerCase().includes(v)) return false;
+      if (col === 'deviceType' && !(p.deviceType || '').toLowerCase().includes(v)) return false;
     }
     return true;
   });
@@ -126,7 +128,11 @@ export default function PackagesPage() {
       if (statusFilter) params.set('status', statusFilter);
       if (typeFilter) params.set('deviceType', typeFilter);
       const { data } = await apiClient(token, logout).get(`/ota/packages?${params}`);
-      const pkgs = (data.packages || []).filter(p => p.status !== 'DELETED');
+      const pkgs = (data.packages || []).filter(p => {
+        if (p.status === 'DELETED') return false;
+        if (statusFilter && p.status !== statusFilter) return false;
+        return true;
+      });
       setPackages(pkgs);
       logger.info('PackagesPage', 'Packages loaded', { count: pkgs.length, statusFilter, typeFilter });
     } catch (err) {
@@ -355,9 +361,9 @@ export default function PackagesPage() {
             <thead>
               <tr>
                 {SearchSortTh('fileName',     'File')}
-                <th>Device Type</th>
+                {SearchSortTh('deviceType',   'Device Type')}
                 <th>Release</th>
-                <th>Status</th>
+                {SearchSortTh('status',       'Status')}
                 <th>Action</th>
                 {SearchSortTh('artifactSize', 'Size')}
                 {SearchSortTh('releaseNotes', 'Release Notes')}
