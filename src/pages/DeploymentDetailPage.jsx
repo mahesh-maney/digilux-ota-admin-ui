@@ -166,7 +166,8 @@ export default function DeploymentDetailPage() {
     }
   };
 
-  const terminal = ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(job?.status);
+  const terminal   = ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(job?.status);
+  const canRollback = ['SUCCEEDED', 'FAILED'].includes(job?.status);
 
   return (
     <div className="page">
@@ -177,7 +178,7 @@ export default function DeploymentDetailPage() {
         </div>
         <div className="header-actions">
           <button className="btn btn-secondary btn-sm" onClick={load}>Refresh</button>
-          {job && (
+          {canRollback && (
             <button
               className="btn btn-warning btn-sm"
               onClick={handleRollback}

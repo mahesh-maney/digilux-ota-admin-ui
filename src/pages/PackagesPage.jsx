@@ -309,14 +309,25 @@ export default function PackagesPage() {
     audit.log('PACKAGE_RECALL', resource, 'INITIATED', { reason });
 
     try {
-      await apiClient(token, logout).patch(
+      const { data } = await apiClient(token, logout).patch(
         `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
         { recalled: true, recallReason: reason.trim() },
       );
       logger.info('PackagesPage', 'PACKAGE_RECALL successful', resource);
-      audit.log('PACKAGE_RECALL', resource, 'SUCCESS', { reason });
-      setActionMsg(`${pkg.packageName} v${pkg.version} recalled — removed from all device update checks.`);
-      setTimeout(() => setActionMsg(''), 5000);
+      audit.log('PACKAGE_RECALL', resource, 'SUCCESS', {
+        reason,
+        cancelledDeployments: data.cancelledDeployments?.length ?? 0,
+        inProgressDeployments: data.inProgressDeployments?.length ?? 0,
+      });
+
+      let msg = `${pkg.packageName} v${pkg.version} recalled.`;
+      const cancelled   = data.cancelledDeployments   || [];
+      const inProgress  = data.inProgressDeployments  || [];
+      if (cancelled.length)  msg += ` ${cancelled.length} queued deployment(s) automatically cancelled.`;
+      if (inProgress.length) msg += ` ⚠ ${inProgress.length} in-progress deployment(s) still running — abort them manually.`;
+
+      setActionMsg(msg);
+      setTimeout(() => setActionMsg(''), inProgress.length ? 10000 : 5000);
       load();
     } catch (err) {
       const errReason = err?.response?.data?.error || err?.response?.data?.message || 'Recall failed';

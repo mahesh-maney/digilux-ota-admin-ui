@@ -246,26 +246,19 @@ export default function UploadPage() {
       }
 
       setResult(pkg);
-      setStage('done');
+      setStage('idle');
+      setFile(null);
+      setChecksum('');
+      setProgress({ done: 0, total: 0 });
+      setForm(f => ({ ...f, version: '', releaseNotes: '' }));
 
     } catch (err) {
       const reason = err.response?.data?.error || err.message || 'Upload failed';
       logger.error('UploadPage', 'Upload flow failed', { resource, reason });
       audit.log('UPLOAD_COMPLETE', { packageName: resource.packageName, version: resource.version }, 'FAILURE', { reason });
       setError(reason);
-      setStage('error');
+      setStage('idle');
     }
-  };
-
-  const reset = () => {
-    logger.debug('UploadPage', 'Form reset');
-    setFile(null);
-    setChecksum('');
-    setStage('idle');
-    setProgress({ done: 0, total: 0 });
-    setResult(null);
-    setError('');
-    setForm(f => ({ ...f, version: '', releaseNotes: '' }));
   };
 
   const busy = stage === 'uploading' || stage === 'polling' || hashing;
@@ -374,20 +367,15 @@ export default function UploadPage() {
           )}
 
           <div className="form-actions mt-4">
-            {stage === 'done' || stage === 'error'
-              ? <button type="button" className="btn btn-secondary" onClick={reset}>Upload Another</button>
-              : (
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={!file || !checksum || busy}
-                >
-                  {stage === 'uploading' ? 'Uploading…'
-                    : stage === 'polling' ? 'Processing…'
-                    : 'Upload'}
-                </button>
-              )
-            }
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={!file || !checksum || busy}
+            >
+              {stage === 'uploading' ? 'Uploading…'
+                : stage === 'polling' ? 'Processing…'
+                : 'Upload'}
+            </button>
           </div>
         </form>
       </div>
