@@ -30,6 +30,25 @@ export const DEVICE_TYPES = (import.meta.env.VITE_DEVICE_TYPES || '')
       'Network_controller_zigbee_stack_firmware',
     ];
 
+// ─── Allowed file extensions per device type ─────────────────────────────
+// Override via VITE_DEVICE_TYPE_EXTENSIONS as a JSON object, e.g.:
+// {"Network_controller_firmware":[".jar"],"Network_controller_Z2M_Firmware":[".tar"]}
+const _DEFAULT_EXTENSIONS = {
+  Network_controller_firmware:              ['.jar'],
+  Network_controller_Z2M_Firmware:          ['.tar'],
+  Network_controller_zigbee_firmware:       ['.bin'],
+  Network_controller_zigbee_stack_firmware: ['.bin'],
+  Network_controller_Miscellaneous:         ['.db', '.yml', '.yaml', '.cert', '.prop'],
+};
+
+export const DEVICE_TYPE_EXTENSIONS = (() => {
+  const raw = import.meta.env.VITE_DEVICE_TYPE_EXTENSIONS;
+  if (raw) {
+    try { return JSON.parse(raw); } catch (e) { console.warn('Invalid VITE_DEVICE_TYPE_EXTENSIONS JSON', e); }
+  }
+  return _DEFAULT_EXTENSIONS;
+})();
+
 // ─── Fixed enums (not customer-configurable) ──────────────────────────────
 export const RELEASE_TYPES  = ['PROD', 'BETA', 'CUSTOM'];
 export const ROLLOUT_STAGES = ['CANARY', 'PRODUCTION', 'BETA', 'CUSTOM'];

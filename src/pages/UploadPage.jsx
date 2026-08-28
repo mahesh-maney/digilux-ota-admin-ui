@@ -4,7 +4,7 @@ import { apiClient } from '../api/client';
 import ProgressBar from '../components/ProgressBar';
 import StatusBadge from '../components/StatusBadge';
 import { sha256 } from 'js-sha256';
-import { DEVICE_TYPES, CHUNK_SIZE } from '../config';
+import { DEVICE_TYPES, CHUNK_SIZE, DEVICE_TYPE_EXTENSIONS } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
@@ -96,6 +96,15 @@ export default function UploadPage() {
       setError('Selected file is empty (0 bytes). Please choose a valid firmware file.');
       e.target.value = '';
       return;
+    }
+    const allowedExts = DEVICE_TYPE_EXTENSIONS[form.deviceType];
+    if (allowedExts?.length) {
+      const ext = '.' + f.name.split('.').pop().toLowerCase();
+      if (!allowedExts.includes(ext)) {
+        setError(`Invalid file type "${ext}" for ${form.deviceType}. Allowed: ${allowedExts.join(', ')}`);
+        e.target.value = '';
+        return;
+      }
     }
     setFile(f);
     setChecksum('');
@@ -275,7 +284,12 @@ export default function UploadPage() {
               <label>Device Type</label>
               <select
                 value={form.deviceType}
-                onChange={e => setForm(f => ({ ...f, deviceType: e.target.value }))}
+                onChange={e => {
+                  setForm(f => ({ ...f, deviceType: e.target.value }));
+                  setFile(null);
+                  setChecksum('');
+                  setError('');
+                }}
                 disabled={busy}
               >
                 {DEVICE_TYPES.map(t => <option key={t}>{t}</option>)}
@@ -311,7 +325,13 @@ export default function UploadPage() {
               onChange={handleFile}
               disabled={busy}
               className="file-input"
+              accept={(DEVICE_TYPE_EXTENSIONS[form.deviceType] || []).join(',')}
             />
+            {DEVICE_TYPE_EXTENSIONS[form.deviceType]?.length > 0 && (
+              <span className="text-muted text-sm">
+                Allowed: {DEVICE_TYPE_EXTENSIONS[form.deviceType].join(', ')}
+              </span>
+            )}
           </div>
 
           {file && (
