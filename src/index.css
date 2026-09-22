@@ -207,8 +207,10 @@ tr:hover td   { background: #f8fafc; }
 .back-link   { font-size: 13px; color: var(--text-muted); display: block; margin-bottom: 4px; }
 
 /* ── Utility ────────────────────────────────────────────────────────────── */
-.text-sm   { font-size: 13px; }
-.text-muted { color: var(--text-muted); }
+.text-sm      { font-size: 13px; }
+.text-muted   { color: var(--text-muted); }
+.text-success { color: #38a169; }
+.text-warning { color: #d97706; }
 .empty     { text-align: center; padding: 48px; color: var(--text-muted); }
 code       { font-family: monospace; font-size: 13px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 .pulse     { animation: pulse 1.5s ease-in-out infinite; }

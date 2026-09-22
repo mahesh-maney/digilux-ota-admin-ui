@@ -262,6 +262,7 @@ export default function UploadPage() {
   };
 
   const busy = stage === 'uploading' || stage === 'polling' || hashing;
+  const notesValid = form.releaseNotes.length >= 20 && form.releaseNotes.length <= 500;
 
   return (
     <div className="page">
@@ -305,9 +306,16 @@ export default function UploadPage() {
               <input
                 value={form.releaseNotes}
                 onChange={e => setForm(f => ({ ...f, releaseNotes: e.target.value }))}
-                placeholder="Optional"
+                placeholder="Describe what changed in this version (min 20 chars)"
+                required
+                minLength={20}
+                maxLength={500}
                 disabled={busy}
               />
+              <span className={`text-sm ${form.releaseNotes.length < 20 ? 'text-muted' : form.releaseNotes.length > 450 ? 'text-warning' : 'text-success'}`}>
+                {form.releaseNotes.length}/500
+                {form.releaseNotes.length > 0 && form.releaseNotes.length < 20 && ` — ${20 - form.releaseNotes.length} more character${20 - form.releaseNotes.length === 1 ? '' : 's'} needed`}
+              </span>
             </div>
           </div>
 
@@ -370,7 +378,7 @@ export default function UploadPage() {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={!file || !checksum || busy}
+              disabled={!file || !checksum || !notesValid || busy}
             >
               {stage === 'uploading' ? 'Uploading…'
                 : stage === 'polling' ? 'Processing…'
