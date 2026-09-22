@@ -25,11 +25,13 @@ A React-based admin dashboard for managing Over-The-Air (OTA) firmware updates f
    - [Get Deployment Detail](#9-get-deployment-detail)
    - [Abort Deployment](#10-abort-deployment)
    - [Device — Check for Available Updates](#11-device--check-for-available-updates)
+   - [User — Respond to Consent Request](#12-user--respond-to-consent-request)
 9. [Upload Flow](#upload-flow)
 10. [Package Lifecycle](#package-lifecycle)
 11. [Deployment Lifecycle](#deployment-lifecycle)
-12. [Audit Logging](#audit-logging)
-13. [Branding & Customisation](#branding--customisation)
+12. [Consent-Gated OTA Flow](#consent-gated-ota-flow)
+13. [Audit Logging](#audit-logging)
+14. [Branding & Customisation](#branding--customisation)
 
 ---
 
@@ -39,9 +41,12 @@ The admin web interface allows operations and engineering teams to:
 
 - Upload firmware binaries (single or multipart for files > 10 MB)
 - Manage packages — publish, withdraw, or recall firmware versions
-- Create and monitor OTA deployment jobs targeting individual devices (THING) or device groups (THING_GROUP)
+- Create consent-gated OTA deployments targeting individual devices (THING) or device groups (THING_GROUP)
+- Monitor per-device consent status (Pending / Accepted / Declined / Expired) on the deployment detail page
 - Roll back a deployment to a previously published version
 - Abort in-progress deployments
+
+**Consent-gated flow:** When a deployment is created, device owners receive a YES/NO notification in the Flutter app (via the `check_updates` API). The IoT Job is only created per-device when the owner accepts. Unanswered requests expire after a configurable number of days and the owner is notified by email.
 
 ---
 
@@ -162,14 +167,15 @@ Session persists across page refreshes until the user explicitly logs out.
 - Per-package actions: **Publish**, **Withdraw**, **Recall** (recall requires a reason)
 
 ### Deployments (`/deployments`)
-- Lists all OTA deployment jobs
-- Create a new deployment targeting a THING or THING_GROUP
+- Lists all OTA deployment jobs; `AWAITING_CONSENT` rows are highlighted yellow
+- Create a new deployment targeting a THING, THING_GROUP, or selected beta users
 - Rollout stage: CANARY | BETA | PRODUCTION
 
 ### Deployment Detail (`/deployments/:jobId`)
 - Job metadata, IoT Job ARN, status
-- Per-device progress table
-- **Abort** button (for non-terminal jobs)
+- **Consent Stats card** (shown for consent-gated deployments) — Pending / Accepted / Declined / Expired counts
+- Per-device progress table (shown once IoT Jobs have been created)
+- **Abort** button — for `AWAITING_CONSENT` deployments this cancels all pending consent records; for active IoT Jobs it cancels the job
 - **Rollback** button — automatically finds the nearest lower published version and creates a new deployment
 
 ---
@@ -562,18 +568,28 @@ Returns all OTA deployment jobs.
 
 ### 8. Create Deployment
 
-Creates a new AWS IoT OTA deployment job.
+Creates a consent-gated OTA deployment. No IoT Job is created immediately — the deployment sits in `AWAITING_CONSENT` until each device owner responds via the Flutter app.
 
 **POST** `/ota/deployments`
 
-**Request Body:**
+**Request Body — THING or THING_GROUP:**
 ```json
 {
-  "packageName": "Network_controller_firmware-1.2.3",
-  "version": "1.2.3",
-  "targetType": "THING_GROUP",
-  "targetId": "DGX-Production",
+  "packageName": "HomeAssistantUtility",
+  "version": "4.5.0",
+  "targetType": "THING",
+  "targetId": "edb39bba-baf1-4700-968c-a42228e53aa0",
   "rolloutStage": "PRODUCTION"
+}
+```
+
+**Request Body — BETA (selected beta users):**
+```json
+{
+  "packageName": "HomeAssistantUtility",
+  "version": "4.5.0",
+  "rolloutStage": "BETA",
+  "targetIds": ["edb39bba-baf1-4700-968c-a42228e53aa0"]
 }
 ```
 
@@ -581,22 +597,31 @@ Creates a new AWS IoT OTA deployment job.
 |---|---|---|---|
 | `packageName` | string | Yes | Must match an existing `ACTIVE` package |
 | `version` | string | Yes | Must match the package version |
-| `targetType` | string | Yes | `THING` or `THING_GROUP` |
-| `targetId` | string | Yes | AWS IoT Thing name (for THING) or Thing Group name (for THING_GROUP) |
-| `rolloutStage` | string | Yes | `CANARY`, `BETA`, or `PRODUCTION` |
+| `targetType` | string | THING/THING_GROUP | `THING` (single device UUID) or `THING_GROUP` (group name) |
+| `targetId` | string | THING/THING_GROUP | Device UUID or IoT thing group name |
+| `targetIds` | array | BETA/CUSTOM | Array of device UUIDs |
+| `rolloutStage` | string | Yes | `BETA`, `CANARY`, `UAT`, or `PRODUCTION` |
 
-**Success Response (200):**
+**Success Response (201):**
 ```json
 {
-  "jobId": "ota-job-1234abcd-5678-efgh-ijkl-mnopqrstuvwx",
-  "message": "Deployment created successfully"
+  "jobId": "digilux-ota-HomeAssistantUtility-4-5-0-1790072620",
+  "packageName": "HomeAssistantUtility",
+  "version": "4.5.0",
+  "targetType": "THING",
+  "targetId": "edb39bba-baf1-4700-968c-a42228e53aa0",
+  "rolloutStage": "PRODUCTION",
+  "status": "AWAITING_CONSENT",
+  "consentCount": 1,
+  "consentExpiryDays": 7,
+  "message": "Deployment created. Consent notifications sent to 1 device(s). IoT Jobs will be created per-device when users approve within 7 days."
 }
 ```
 
 **Error Response (4xx):**
 ```json
 {
-  "error": "Package is not published (activated = false)"
+  "error": "Package HomeAssistantUtility@4.5.0 is not ACTIVE"
 }
 ```
 
@@ -613,41 +638,50 @@ Returns full detail for a deployment job including per-device progress.
 GET /ota/deployments/ota-job-1234abcd-5678-efgh-ijkl-mnopqrstuvwx
 ```
 
-**Success Response (200):**
+**Success Response (200) — AWAITING_CONSENT deployment:**
 ```json
 {
-  "jobId": "ota-job-1234abcd-5678-efgh-ijkl-mnopqrstuvwx",
-  "packageName": "Network_controller_firmware-1.2.3",
-  "version": "1.2.3",
-  "targetType": "THING_GROUP",
-  "targetId": "DGX-Production",
+  "jobId": "digilux-ota-HomeAssistantUtility-4-5-0-1790072620",
+  "packageName": "HomeAssistantUtility",
+  "version": "4.5.0",
+  "targetType": "THING",
+  "targetId": "edb39bba-baf1-4700-968c-a42228e53aa0",
   "rolloutStage": "PRODUCTION",
-  "status": "IN_PROGRESS",
-  "iotJobStatus": "IN_PROGRESS",
-  "iotJobArn": "arn:aws:iot:ap-south-1:123456789:job/ota-job-1234abcd",
-  "createdAt": "2024-11-15T10:30:00.000Z",
-  "deviceStatuses": {
-    "device-thing-001": {
-      "status": "IN_PROGRESS",
-      "lastUpdatedAt": "2024-11-15T10:32:10.000Z"
-    },
-    "device-thing-002": {
-      "status": "SUCCEEDED",
-      "lastUpdatedAt": "2024-11-15T10:35:00.000Z"
-    },
-    "device-thing-003": {
-      "status": "QUEUED",
-      "lastUpdatedAt": "2024-11-15T10:30:05.000Z"
-    }
-  }
+  "status": "AWAITING_CONSENT",
+  "consentCount": 1,
+  "consentStats": {
+    "PENDING": 1,
+    "ACCEPTED": 0,
+    "DECLINED": 0,
+    "EXPIRED": 0
+  },
+  "createdAt": 1790072620000,
+  "createdBy": "admin@digilux.co.in"
+}
+```
+
+**Success Response (200) — after user accepts (IoT Job created):**
+```json
+{
+  "jobId": "digilux-ota-HomeAssistantUtility-4-5-0-1790072620",
+  "status": "AWAITING_CONSENT",
+  "consentStats": {
+    "PENDING": 0,
+    "ACCEPTED": 1,
+    "DECLINED": 0,
+    "EXPIRED": 0
+  },
+  "deviceStatuses": {}
 }
 ```
 
 | Field | Type | Description |
 |---|---|---|
-| `iotJobArn` | string | Full AWS IoT Job ARN |
+| `consentCount` | number | Total devices a consent request was sent to |
+| `consentStats` | object | Count of consents by status: PENDING / ACCEPTED / DECLINED / EXPIRED |
+| `iotJobArn` | string | Full AWS IoT Job ARN (present once at least one device has accepted) |
 | `iotJobStatus` | string | Raw status from AWS IoT (may differ from `status` during transition) |
-| `deviceStatuses` | object | Map of `thingName` → `{ status, lastUpdatedAt }` |
+| `deviceStatuses` | object | Map of `thingName` → `{ status, lastUpdatedAt }` (populated after IoT Job runs) |
 
 **Device status values:** `QUEUED`, `IN_PROGRESS`, `SUCCEEDED`, `FAILED`, `REJECTED`, `REMOVED`, `TIMED_OUT`
 
@@ -728,6 +762,93 @@ Authorization: Bearer <pkce_access_token>
 
 When no updates are available, or the user has no registered devices, `devices` is an empty array.
 
+The response also includes a `pendingConsents` array — consent requests awaiting the user's YES/NO response:
+
+```json
+{
+  "devices": [...],
+  "pendingConsents": [
+    {
+      "consentId": "66a97902-1673-48b3-992c-44152e4b5dec",
+      "deploymentId": "digilux-ota-HomeAssistantUtility-4-5-0-1790072620",
+      "deviceId": "edb39bba-baf1-4700-968c-a42228e53aa0",
+      "packageName": "HomeAssistantUtility",
+      "version": "4.5.0",
+      "expiresAt": 1790677420364
+    }
+  ]
+}
+```
+
+The Flutter app uses `pendingConsents` to render YES/NO update notification cards with the package's `releaseNotes`.
+
+---
+
+### 12. User — Respond to Consent Request
+
+Called by the Flutter app when the user taps YES or NO on an update notification.
+
+> **Auth:** Same as §11 — Bearer PKCE access token.
+>
+> **Base URL:** `https://iot.digilux.co.in/api/v1`
+
+**POST** `https://iot.digilux.co.in/api/v1/ota/my/updates/consent`
+
+**Request Body — YES (accept):**
+```json
+{
+  "consentId": "66a97902-1673-48b3-992c-44152e4b5dec",
+  "accepted": true
+}
+```
+
+**Request Body — NO (decline):**
+```json
+{
+  "consentId": "66a97902-1673-48b3-992c-44152e4b5dec",
+  "accepted": false
+}
+```
+
+**Success Response — accepted (202):**
+```json
+{
+  "consentId": "66a97902-1673-48b3-992c-44152e4b5dec",
+  "jobId": "digilux-ota-HomeAssistantUtility-4-5-0-1790072916",
+  "deviceId": "edb39bba-baf1-4700-968c-a42228e53aa0",
+  "packageName": "HomeAssistantUtility",
+  "version": "4.5.0",
+  "status": "QUEUED",
+  "message": "Update accepted. Your device will download and install the update shortly."
+}
+```
+
+**Success Response — declined (200):**
+```json
+{
+  "consentId": "66a97902-1673-48b3-992c-44152e4b5dec",
+  "status": "DECLINED",
+  "message": "Update declined. No firmware changes will be made to your device."
+}
+```
+
+**Error Response (409) — already responded:**
+```json
+{
+  "error": "You have already declined this update.",
+  "status": "DECLINED"
+}
+```
+
+**Error Response (410) — expired:**
+```json
+{
+  "error": "This update consent request has expired."
+}
+```
+
+> **Legacy mode (user-initiated):** The endpoint also supports the old body `{ "deviceId", "packageName", "version" }` for user-initiated updates where no admin deployment exists. The IoT Job is created immediately in this case.
+
 ---
 
 ## Upload Flow
@@ -789,17 +910,76 @@ ACTIVE  CORRUPTED   <- SHA-256 mismatch or processing error
 
 ## Deployment Lifecycle
 
-Deployments map to **AWS IoT Jobs**. Status values mirror IoT Job statuses:
+```
+Admin creates deployment
+        |
+        v
+  AWAITING_CONSENT   ← consent records created (one per target device)
+        |
+        |  User taps YES in Flutter app
+        |     └─► per-device IoT Job created → QUEUED → IN_PROGRESS → SUCCEEDED / FAILED
+        |
+        |  User taps NO
+        |     └─► consent DECLINED, SES email sent, no IoT Job
+        |
+        |  No response within CONSENT_EXPIRY_DAYS (default: 7)
+        |     └─► consent EXPIRED (daily Lambda), SES email sent, no IoT Job
+        |
+        |  Admin aborts
+              └─► all PENDING consents CANCELLED, deployment → CANCELLED
+```
 
 | Status | Meaning |
 |---|---|
-| `IN_PROGRESS` | Job is being executed by one or more devices |
-| `QUEUED` | Job created, devices not yet started |
-| `SUCCEEDED` | All targeted devices completed successfully |
-| `FAILED` | One or more devices failed |
-| `CANCELLED` | Job was aborted before completion |
+| `AWAITING_CONSENT` | Consent notifications sent, waiting for device owner responses |
+| `QUEUED` | Per-device IoT Job created after user accepted, not yet started |
+| `IN_PROGRESS` | IoT Job is being executed by the device |
+| `SUCCEEDED` | Device completed the update successfully |
+| `FAILED` | Device failed the update |
+| `CANCELLED` | Deployment or IoT Job was aborted |
 
-**Rollback** creates a fresh deployment job targeting the same devices but with the nearest lower published version of the same package.
+**Consent statuses** (per consent record):
+
+| Status | Meaning |
+|---|---|
+| `PENDING` | Awaiting user response |
+| `ACCEPTED` | User tapped YES — IoT Job created |
+| `DECLINED` | User tapped NO — no update applied |
+| `EXPIRED` | No response within expiry window — no update applied |
+| `CANCELLED` | Admin aborted the deployment before user responded |
+
+**Rollback** creates a fresh deployment (also consent-gated) targeting the same devices with the nearest lower published version of the same package.
+
+---
+
+## Consent-Gated OTA Flow
+
+```
+Admin                  Backend                    Device Owner (Flutter)
+  |                       |                               |
+  |-- POST /deployments -->|                              |
+  |                       |-- Write AWAITING_CONSENT ---> DynamoDB
+  |                       |-- Write PENDING consents ---> DynamoDB (one per device)
+  |<-- 201 AWAITING_CONSENT|                              |
+  |                       |                               |
+  |                       |<---- GET check_updates -------|
+  |                       |-- Return pendingConsents ----->|
+  |                       |                               |-- Show YES/NO card
+  |                       |                               |   with releaseNotes
+  |                       |                               |
+  |                       |<-- POST /consent {accepted:true}|
+  |                       |-- Create IoT Job ------------> AWS IoT
+  |                       |-- Update consent → ACCEPTED -> DynamoDB
+  |                       |-- Set pendingJobId ----------> device_data
+  |                       |-- Return 202 + jobId -------->|
+  |                       |                               |
+  |-- GET /deployments/{id}|                              |
+  |<-- consentStats {ACCEPTED:1, PENDING:0} --------------|
+```
+
+**Expiry:** A daily EventBridge-triggered Lambda (`digilux_ota_consent_expiry`) scans for PENDING consent records past their `expiresAt` timestamp, marks them EXPIRED, and sends an SES email to the device owner.
+
+---
 
 ---
 

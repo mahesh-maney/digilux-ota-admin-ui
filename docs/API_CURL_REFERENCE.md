@@ -150,7 +150,11 @@ curl -s "$BASE/ota/deployments/{jobId}" \
   -H "Authorization: $ADMIN_TOKEN" | python3 -m json.tool
 ```
 
-### Create deployment — BETA / UAT (specific device)
+### Create deployment — BETA (specific device)
+
+Deployments are **consent-gated** — no IoT Job is created immediately.
+A PENDING consent record is written for each target device. The IoT Job
+is only created when the device owner taps YES in the Flutter app.
 
 ```bash
 curl -s -X POST "$BASE/ota/deployments" \
@@ -159,9 +163,8 @@ curl -s -X POST "$BASE/ota/deployments" \
   -d '{
     "packageName":  "<packageName>",
     "version":      "1.0.0",
-    "targetType":   "THING",
-    "targetId":     "<deviceId-uuid>",
-    "rolloutStage": "BETA"
+    "rolloutStage": "BETA",
+    "targetIds":    ["<deviceId-uuid>"]
   }' | python3 -m json.tool
 ```
 
@@ -180,7 +183,37 @@ curl -s -X POST "$BASE/ota/deployments" \
   }' | python3 -m json.tool
 ```
 
+**Example response (201):**
+```json
+{
+  "jobId": "digilux-ota-HomeAssistantUtility-4-5-0-1790072620",
+  "status": "AWAITING_CONSENT",
+  "consentCount": 1,
+  "consentExpiryDays": 7,
+  "message": "Deployment created. Consent notifications sent to 1 device(s)."
+}
+```
+
+### Get deployment detail (with consent stats)
+
+```bash
+curl -s "$BASE/ota/deployments/{jobId}" \
+  -H "Authorization: $ADMIN_TOKEN" | python3 -m json.tool
+```
+
+**Example response fragment:**
+```json
+{
+  "status": "AWAITING_CONSENT",
+  "consentCount": 3,
+  "consentStats": { "PENDING": 2, "ACCEPTED": 1, "DECLINED": 0, "EXPIRED": 0 }
+}
+```
+
 ### Abort deployment
+
+Cancels all PENDING consent records for `AWAITING_CONSENT` deployments,
+or cancels the IoT Job for active deployments.
 
 ```bash
 curl -s -X POST "$BASE/ota/deployments/{jobId}/abort" \
