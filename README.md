@@ -774,7 +774,9 @@ Called by the Flutter app when the user taps YES or NO on an update notification
 **Request Body — YES (accept):**
 ```json
 {
-  "consentId": "66a97902-1673-48b3-992c-44152e4b5dec",
+  "deviceId": "edb39bba-baf1-4700-968c-a42228e53aa0",
+  "packageName": "HomeAssistantUtility",
+  "version": "4.5.0",
   "accepted": true
 }
 ```
@@ -782,7 +784,9 @@ Called by the Flutter app when the user taps YES or NO on an update notification
 **Request Body — NO (decline):**
 ```json
 {
-  "consentId": "66a97902-1673-48b3-992c-44152e4b5dec",
+  "deviceId": "edb39bba-baf1-4700-968c-a42228e53aa0",
+  "packageName": "HomeAssistantUtility",
+  "version": "4.5.0",
   "accepted": false
 }
 ```
@@ -790,7 +794,6 @@ Called by the Flutter app when the user taps YES or NO on an update notification
 **Success Response — accepted (202):**
 ```json
 {
-  "consentId": "66a97902-1673-48b3-992c-44152e4b5dec",
   "jobId": "digilux-ota-HomeAssistantUtility-4-5-0-1790072916",
   "deviceId": "edb39bba-baf1-4700-968c-a42228e53aa0",
   "packageName": "HomeAssistantUtility",
@@ -803,7 +806,6 @@ Called by the Flutter app when the user taps YES or NO on an update notification
 **Success Response — declined (200):**
 ```json
 {
-  "consentId": "66a97902-1673-48b3-992c-44152e4b5dec",
   "status": "DECLINED",
   "message": "Update declined. No firmware changes will be made to your device."
 }

@@ -297,11 +297,20 @@ curl -s "$DEVICE_BASE/ota/device/available-updates" \
 
 ### User consents to update
 
+Accept or decline an update. `accepted` is optional and defaults to `true`.
+
 ```bash
+# Accept
 curl -s -X POST "$DEVICE_BASE/ota/my/updates/consent" \
   -H "Authorization: Bearer $USER_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"packageName": "<packageName>", "version": "1.0.0"}' | python3 -m json.tool
+  -d '{"deviceId": "<deviceId>", "packageName": "<packageName>", "version": "1.0.0", "accepted": true}' | python3 -m json.tool
+
+# Decline
+curl -s -X POST "$DEVICE_BASE/ota/my/updates/consent" \
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"deviceId": "<deviceId>", "packageName": "<packageName>", "version": "1.0.0", "accepted": false}' | python3 -m json.tool
 ```
 
 ### Get signed download link for firmware
