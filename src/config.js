@@ -34,11 +34,11 @@ export const DEVICE_TYPES = (import.meta.env.VITE_DEVICE_TYPES || '')
 // Override via VITE_DEVICE_TYPE_EXTENSIONS as a JSON object, e.g.:
 // {"Network_controller_firmware":[".jar"],"Network_controller_Z2M_Firmware":[".tar"]}
 const _DEFAULT_EXTENSIONS = {
-  Network_controller_firmware:              ['.jar'],
+  Network_controller_firmware:              ['.jar', '.tar'],
   Network_controller_Z2M_Firmware:          ['.tar'],
-  Network_controller_zigbee_firmware:       ['.bin'],
-  Network_controller_zigbee_stack_firmware: ['.bin'],
-  Network_controller_Miscellaneous:         ['.db', '.yml', '.yaml', '.cert', '.prop'],
+  Network_controller_zigbee_firmware:       ['.bin', '.tar'],
+  Network_controller_zigbee_stack_firmware: ['.bin', '.tar'],
+  Network_controller_Miscellaneous:         ['.db', '.yml', '.yaml', '.cert', '.prop', '.tar'],
 };
 
 export const DEVICE_TYPE_EXTENSIONS = (() => {
