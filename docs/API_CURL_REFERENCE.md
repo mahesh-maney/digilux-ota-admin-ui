@@ -189,7 +189,6 @@ curl -s -X POST "$BASE/ota/deployments" \
   "jobId": "digilux-ota-HomeAssistantUtility-4-5-0-1790072620",
   "status": "AWAITING_CONSENT",
   "consentCount": 1,
-  "consentExpiryDays": 7,
   "message": "Deployment created. Consent notifications sent to 1 device(s)."
 }
 ```
@@ -206,7 +205,7 @@ curl -s "$BASE/ota/deployments/{jobId}" \
 {
   "status": "AWAITING_CONSENT",
   "consentCount": 3,
-  "consentStats": { "PENDING": 2, "ACCEPTED": 1, "DECLINED": 0, "EXPIRED": 0 }
+  "consentStats": { "PENDING": 2, "ACCEPTED": 1, "DECLINED": 0 }
 }
 ```
 

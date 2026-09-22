@@ -260,7 +260,6 @@ export default function DeploymentDetailPage() {
                   { label: 'Pending',  key: 'PENDING',  cls: 'badge-blue'   },
                   { label: 'Accepted', key: 'ACCEPTED', cls: 'badge-green'  },
                   { label: 'Declined', key: 'DECLINED', cls: 'badge-red'    },
-                  { label: 'Expired',  key: 'EXPIRED',  cls: 'badge-grey'   },
                 ].map(({ label, key, cls }) => (
                   <div key={key} style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',

@@ -613,8 +613,7 @@ Creates a consent-gated OTA deployment. No IoT Job is created immediately — th
   "rolloutStage": "PRODUCTION",
   "status": "AWAITING_CONSENT",
   "consentCount": 1,
-  "consentExpiryDays": 7,
-  "message": "Deployment created. Consent notifications sent to 1 device(s). IoT Jobs will be created per-device when users approve within 7 days."
+  "message": "Deployment created. Consent notifications sent to 1 device(s)."
 }
 ```
 
@@ -652,8 +651,7 @@ GET /ota/deployments/ota-job-1234abcd-5678-efgh-ijkl-mnopqrstuvwx
   "consentStats": {
     "PENDING": 1,
     "ACCEPTED": 0,
-    "DECLINED": 0,
-    "EXPIRED": 0
+    "DECLINED": 0
   },
   "createdAt": 1790072620000,
   "createdBy": "admin@digilux.co.in"
@@ -668,8 +666,7 @@ GET /ota/deployments/ota-job-1234abcd-5678-efgh-ijkl-mnopqrstuvwx
   "consentStats": {
     "PENDING": 0,
     "ACCEPTED": 1,
-    "DECLINED": 0,
-    "EXPIRED": 0
+    "DECLINED": 0
   },
   "deviceStatuses": {}
 }
@@ -678,7 +675,7 @@ GET /ota/deployments/ota-job-1234abcd-5678-efgh-ijkl-mnopqrstuvwx
 | Field | Type | Description |
 |---|---|---|
 | `consentCount` | number | Total devices a consent request was sent to |
-| `consentStats` | object | Count of consents by status: PENDING / ACCEPTED / DECLINED / EXPIRED |
+| `consentStats` | object | Count of consents by status: PENDING / ACCEPTED / DECLINED |
 | `iotJobArn` | string | Full AWS IoT Job ARN (present once at least one device has accepted) |
 | `iotJobStatus` | string | Raw status from AWS IoT (may differ from `status` during transition) |
 | `deviceStatuses` | object | Map of `thingName` → `{ status, lastUpdatedAt }` (populated after IoT Job runs) |
@@ -773,8 +770,7 @@ The response also includes a `pendingConsents` array — consent requests awaiti
       "deploymentId": "digilux-ota-HomeAssistantUtility-4-5-0-1790072620",
       "deviceId": "edb39bba-baf1-4700-968c-a42228e53aa0",
       "packageName": "HomeAssistantUtility",
-      "version": "4.5.0",
-      "expiresAt": 1790677420364
+      "version": "4.5.0"
     }
   ]
 }
@@ -922,9 +918,6 @@ Admin creates deployment
         |  User taps NO
         |     └─► consent DECLINED, SES email sent, no IoT Job
         |
-        |  No response within CONSENT_EXPIRY_DAYS (default: 7)
-        |     └─► consent EXPIRED (daily Lambda), SES email sent, no IoT Job
-        |
         |  Admin aborts
               └─► all PENDING consents CANCELLED, deployment → CANCELLED
 ```
@@ -945,7 +938,6 @@ Admin creates deployment
 | `PENDING` | Awaiting user response |
 | `ACCEPTED` | User tapped YES — IoT Job created |
 | `DECLINED` | User tapped NO — no update applied |
-| `EXPIRED` | No response within expiry window — no update applied |
 | `CANCELLED` | Admin aborted the deployment before user responded |
 
 **Rollback** creates a fresh deployment (also consent-gated) targeting the same devices with the nearest lower published version of the same package.
@@ -976,8 +968,6 @@ Admin                  Backend                    Device Owner (Flutter)
   |-- GET /deployments/{id}|                              |
   |<-- consentStats {ACCEPTED:1, PENDING:0} --------------|
 ```
-
-**Expiry:** A daily EventBridge-triggered Lambda (`digilux_ota_consent_expiry`) scans for PENDING consent records past their `expiresAt` timestamp, marks them EXPIRED, and sends an SES email to the device owner.
 
 ---
 

@@ -12,7 +12,6 @@ const MAP = {
   AWAITING_CONSENT: 'badge-yellow',
   ACCEPTED:         'badge-green',
   DECLINED:         'badge-red',
-  EXPIRED:          'badge-grey',
 };
 
 export default function StatusBadge({ status }) {
