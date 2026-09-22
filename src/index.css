@@ -131,6 +131,7 @@ tr.row-published   td { background: #f0fdf4; }
 tr.row-recalled    td { background: #fff1f2; }
 tr.row-uat         td { background: #fefce8; }
 tr.row-inprogress  td { background: #eff6ff; }
+tr.row-consent     td { background: #fefce8; }
 tr.row-queued      td { background: #f0f9ff; }
 tr.row-cancelled   td { background: #f9fafb; }
 

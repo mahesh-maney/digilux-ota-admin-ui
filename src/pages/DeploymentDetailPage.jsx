@@ -166,8 +166,9 @@ export default function DeploymentDetailPage() {
     }
   };
 
-  const terminal   = ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(job?.status);
+  const terminal    = ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(job?.status);
   const canRollback = ['SUCCEEDED', 'FAILED'].includes(job?.status);
+  const awaitingConsent = job?.status === 'AWAITING_CONSENT';
 
   return (
     <div className="page">
@@ -244,6 +245,47 @@ export default function DeploymentDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Consent stats — shown for admin-initiated consent-gated deployments */}
+          {(awaitingConsent || job.consentStats) && (
+            <div className="card mb-4">
+              <h3>User Consent</h3>
+              {awaitingConsent && (
+                <p className="text-sm text-muted" style={{ marginBottom: 14 }}>
+                  Waiting for device owners to approve this update. IoT Jobs will be created per-device once each user consents.
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Pending',  key: 'PENDING',  cls: 'badge-blue'   },
+                  { label: 'Accepted', key: 'ACCEPTED', cls: 'badge-green'  },
+                  { label: 'Declined', key: 'DECLINED', cls: 'badge-red'    },
+                  { label: 'Expired',  key: 'EXPIRED',  cls: 'badge-grey'   },
+                ].map(({ label, key, cls }) => (
+                  <div key={key} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    background: 'var(--bg)', border: '1px solid var(--border)',
+                    borderRadius: 8, padding: '12px 20px', minWidth: 90,
+                  }}>
+                    <span style={{ fontSize: 24, fontWeight: 700 }}>
+                      {job.consentStats?.[key] ?? '—'}
+                    </span>
+                    <span className={`badge ${cls}`} style={{ marginTop: 4 }}>{label}</span>
+                  </div>
+                ))}
+                {job.consentCount != null && (
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    background: 'var(--bg)', border: '1px solid var(--border)',
+                    borderRadius: 8, padding: '12px 20px', minWidth: 90,
+                  }}>
+                    <span style={{ fontSize: 24, fontWeight: 700 }}>{job.consentCount}</span>
+                    <span className="badge badge-grey" style={{ marginTop: 4 }}>Total</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {job.deviceStatuses && Object.keys(job.deviceStatuses).length > 0 && (
             <div className="card">

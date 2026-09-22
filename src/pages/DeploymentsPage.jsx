@@ -189,7 +189,11 @@ export default function DeploymentsPage() {
       const { data } = await apiClient(token, logout).post('/ota/deployments', payload);
       logger.info('DeploymentsPage', 'Deployment created', { jobId: data.jobId, ...resource });
       audit.log('DEPLOYMENT_CREATE', resource, 'SUCCESS', { jobId: data.jobId });
-      setSuccessMsg(`Job created: ${data.jobId}`);
+      setSuccessMsg(
+        data.status === 'AWAITING_CONSENT'
+          ? `Deployment created — awaiting consent from ${data.consentCount} device(s). Job ID: ${data.jobId}`
+          : `Job created: ${data.jobId}`
+      );
       setTimeout(() => setSuccessMsg(''), 5000);
       setShowForm(false);
       setForm(DEFAULT_FORM);
@@ -425,6 +429,7 @@ export default function DeploymentsPage() {
                     d.status === 'SUCCEEDED'                        ? 'row-published'
                   : d.status === 'IN_PROGRESS'                      ? 'row-inprogress'
                   : d.status === 'QUEUED'                           ? 'row-queued'
+                  : d.status === 'AWAITING_CONSENT'                 ? 'row-consent'
                   : d.status === 'FAILED' || d.status === 'REJECTED'? 'row-recalled'
                   : d.status === 'CANCELLED'                        ? 'row-cancelled'
                   : ''

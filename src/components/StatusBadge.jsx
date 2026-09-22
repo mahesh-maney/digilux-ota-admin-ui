@@ -1,14 +1,18 @@
 const MAP = {
-  ACTIVE:      'badge-green',
-  PENDING:     'badge-yellow',
-  CORRUPTED:   'badge-red',
-  RECALLED:    'badge-orange',
-  QUEUED:      'badge-blue',
-  IN_PROGRESS: 'badge-blue',
-  SUCCEEDED:   'badge-green',
-  FAILED:      'badge-red',
-  CANCELLED:   'badge-grey',
-  REJECTED:    'badge-red',
+  ACTIVE:           'badge-green',
+  PENDING:          'badge-yellow',
+  CORRUPTED:        'badge-red',
+  RECALLED:         'badge-orange',
+  QUEUED:           'badge-blue',
+  IN_PROGRESS:      'badge-blue',
+  SUCCEEDED:        'badge-green',
+  FAILED:           'badge-red',
+  CANCELLED:        'badge-grey',
+  REJECTED:         'badge-red',
+  AWAITING_CONSENT: 'badge-yellow',
+  ACCEPTED:         'badge-green',
+  DECLINED:         'badge-red',
+  EXPIRED:          'badge-grey',
 };
 
 export default function StatusBadge({ status }) {
