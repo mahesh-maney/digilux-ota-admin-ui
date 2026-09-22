@@ -73,7 +73,7 @@ curl -s -X POST "$BASE/ota/packages/upload-artefact" \
     \"deviceType\":   \"Network_controller_firmware\",
     \"version\":      \"1.0.0\",
     \"releaseType\":  \"UAT\",
-    \"releaseNotes\": \"Optional notes\",
+    \"releaseNotes\": \"Fixed zigbee reconnect loop on cold boot (required, 20–500 chars)\",
     \"checksum\":     \"$CHECKSUM\",
     \"totalSize\":    $FILESIZE
   }" | python3 -m json.tool
@@ -221,7 +221,14 @@ curl -s -X DELETE "$BASE/ota/beta-users/user%40example.com" \
 
 ## Device / User Endpoints
 
-> These use `$USER_TOKEN` (main app pool), except the compatibility check which uses `$ADMIN_TOKEN`.
+> **Different base URL:** Device-side endpoints live at `https://iot.digilux.co.in/api/v1` — not the admin base URL.
+>
+> **Different auth:** `$USER_TOKEN` must be an **OAuth 2.0 PKCE access token** carrying the `smarthome_server/read smarthome_server/write` scopes. A plain `USER_PASSWORD_AUTH` token will be rejected with 401.
+> Pass it with a `Bearer` prefix — unlike the admin token.
+
+```bash
+DEVICE_BASE="https://iot.digilux.co.in/api/v1"
+```
 
 ### Check device compatibility (admin)
 
@@ -230,18 +237,37 @@ curl -s "$BASE/controllers/{deviceId}/updates/available" \
   -H "Authorization: $ADMIN_TOKEN" | python3 -m json.tool
 ```
 
-### Device checks for pending updates
+### Device checks for available updates
+
+Returns available updates for all devices owned by the user. Response includes `releaseNotes` for the available version.
 
 ```bash
-curl -s "$BASE/ota/device/available-updates" \
-  -H "Authorization: $USER_TOKEN" | python3 -m json.tool
+curl -s "$DEVICE_BASE/ota/device/available-updates" \
+  -H "Authorization: Bearer $USER_TOKEN" | python3 -m json.tool
+```
+
+**Example response:**
+```json
+{
+  "devices": [
+    {
+      "deviceId": "edb39bba-baf1-4700-968c-a42228e53aa0",
+      "otaStatus": "REGISTERED",
+      "package": "HomeAssistantUtility",
+      "installedVersion": "1.0.0",
+      "availableVersion": "4.5.0",
+      "fileName": "HomeAssistantUtility-4.5.0.jar",
+      "releaseNotes": "Fixed zigbee reconnect loop on cold boot"
+    }
+  ]
+}
 ```
 
 ### User consents to update
 
 ```bash
-curl -s -X POST "$BASE/ota/my/updates/consent" \
-  -H "Authorization: $USER_TOKEN" \
+curl -s -X POST "$DEVICE_BASE/ota/my/updates/consent" \
+  -H "Authorization: Bearer $USER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"packageName": "<packageName>", "version": "1.0.0"}' | python3 -m json.tool
 ```
@@ -249,8 +275,8 @@ curl -s -X POST "$BASE/ota/my/updates/consent" \
 ### Get signed download link for firmware
 
 ```bash
-curl -s -X POST "$BASE/ota/my/updates/download-link" \
-  -H "Authorization: $USER_TOKEN" \
+curl -s -X POST "$DEVICE_BASE/ota/my/updates/download-link" \
+  -H "Authorization: Bearer $USER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"packageName": "<packageName>", "version": "1.0.0"}' | python3 -m json.tool
 ```
@@ -258,8 +284,8 @@ curl -s -X POST "$BASE/ota/my/updates/download-link" \
 ### Track update job status
 
 ```bash
-curl -s "$BASE/ota/my/updates/{jobId}/status" \
-  -H "Authorization: $USER_TOKEN" | python3 -m json.tool
+curl -s "$DEVICE_BASE/ota/my/updates/{jobId}/status" \
+  -H "Authorization: Bearer $USER_TOKEN" | python3 -m json.tool
 ```
 
 ---

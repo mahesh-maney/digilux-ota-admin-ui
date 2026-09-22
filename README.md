@@ -24,6 +24,7 @@ A React-based admin dashboard for managing Over-The-Air (OTA) firmware updates f
    - [Create Deployment](#8-create-deployment)
    - [Get Deployment Detail](#9-get-deployment-detail)
    - [Abort Deployment](#10-abort-deployment)
+   - [Device — Check for Available Updates](#11-device--check-for-available-updates)
 9. [Upload Flow](#upload-flow)
 10. [Package Lifecycle](#package-lifecycle)
 11. [Deployment Lifecycle](#deployment-lifecycle)
@@ -148,8 +149,8 @@ Session persists across page refreshes until the user explicitly logs out.
 ## Pages & Features
 
 ### Upload (`/upload`)
-- Select device type, version, release type (PROD/UAT), and optional release notes
-- Attach a firmware binary file
+- Select device type, version, and release notes (**mandatory**, 20–500 characters with live counter)
+- Attach a firmware binary file — allowed extensions vary by device type (all types accept `.tar`)
 - SHA-256 checksum is computed in-browser (Web Crypto API) before upload
 - Files <= 10 MB: single PUT to S3
 - Files > 10 MB: automatic multipart upload (10 MB chunks, 3 concurrent)
@@ -257,7 +258,7 @@ Registers a new firmware package and returns S3 pre-signed URL(s) for the binary
 | `deviceType` | string | Yes | One of the configured device types |
 | `version` | string | Yes | Semantic version string e.g. `1.2.3` |
 | `releaseType` | string | Yes | `PROD` or `UAT` |
-| `releaseNotes` | string | No | Free-text notes |
+| `releaseNotes` | string | Yes | What changed in this version — min 20, max 500 characters |
 | `checksum` | string | Yes | SHA-256 hex of the file (computed client-side) |
 | `totalSize` | number | Yes | File size in bytes |
 
@@ -680,6 +681,52 @@ Cancels an in-progress deployment. Has no effect on devices that have already re
   "error": "Cannot abort a job in SUCCEEDED state"
 }
 ```
+
+---
+
+### 11. Device — Check for Available Updates
+
+Returns available OTA updates for all devices owned by the authenticated user.
+
+> **Auth:** Requires a user-pool access token obtained via **OAuth 2.0 Authorization Code + PKCE** flow (not a plain `USER_PASSWORD_AUTH` token). The token must carry the `smarthome_server/read` scope.
+>
+> **Base URL:** `https://iot.digilux.co.in/api/v1` _(different from the admin base URL)_
+
+**GET** `https://iot.digilux.co.in/api/v1/ota/device/available-updates`
+
+**Request Headers:**
+```
+Authorization: Bearer <pkce_access_token>
+```
+
+**Success Response (200):**
+```json
+{
+  "devices": [
+    {
+      "deviceId": "edb39bba-baf1-4700-968c-a42228e53aa0",
+      "otaStatus": "REGISTERED",
+      "package": "HomeAssistantUtility",
+      "installedVersion": "1.0.0",
+      "availableVersion": "4.5.0",
+      "fileName": "HomeAssistantUtility-4.5.0.jar",
+      "releaseNotes": "Fixed zigbee reconnect loop on cold boot"
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `deviceId` | string | Device UUID |
+| `otaStatus` | string | `REGISTERED` — OTA agent active; `NOT_REGISTERED` — agent not yet started |
+| `package` | string | Package name the device is running |
+| `installedVersion` | string | Currently installed version |
+| `availableVersion` | string | Latest published version available for this device |
+| `fileName` | string | Artifact filename |
+| `releaseNotes` | string | Release notes for the available version |
+
+When no updates are available, or the user has no registered devices, `devices` is an empty array.
 
 ---
 
