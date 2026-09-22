@@ -759,25 +759,6 @@ Authorization: Bearer <pkce_access_token>
 
 When no updates are available, or the user has no registered devices, `devices` is an empty array.
 
-The response also includes a `pendingConsents` array — consent requests awaiting the user's YES/NO response:
-
-```json
-{
-  "devices": [...],
-  "pendingConsents": [
-    {
-      "consentId": "66a97902-1673-48b3-992c-44152e4b5dec",
-      "deploymentId": "digilux-ota-HomeAssistantUtility-4-5-0-1790072620",
-      "deviceId": "edb39bba-baf1-4700-968c-a42228e53aa0",
-      "packageName": "HomeAssistantUtility",
-      "version": "4.5.0"
-    }
-  ]
-}
-```
-
-The Flutter app uses `pendingConsents` to render YES/NO update notification cards with the package's `releaseNotes`.
-
 ---
 
 ### 12. User — Respond to Consent Request
@@ -954,10 +935,6 @@ Admin                  Backend                    Device Owner (Flutter)
   |                       |-- Write PENDING consents ---> DynamoDB (one per device)
   |<-- 201 AWAITING_CONSENT|                              |
   |                       |                               |
-  |                       |<---- GET check_updates -------|
-  |                       |-- Return pendingConsents ----->|
-  |                       |                               |-- Show YES/NO card
-  |                       |                               |   with releaseNotes
   |                       |                               |
   |                       |<-- POST /consent {accepted:true}|
   |                       |-- Create IoT Job ------------> AWS IoT
