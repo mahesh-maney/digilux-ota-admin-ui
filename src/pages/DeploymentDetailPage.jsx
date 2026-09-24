@@ -246,6 +246,16 @@ export default function DeploymentDetailPage() {
             </div>
           </div>
 
+          {/* Failed deployment notice */}
+          {job.status === 'FAILED' && (
+            <div className="alert alert-warning" style={{ marginBottom: 16 }}>
+              <strong>This deployment failed on one or more devices.</strong>{' '}
+              Affected devices will automatically see the latest available firmware in the next update check —
+              the failed job does not block future updates.
+              Use <strong>Rollback</strong> to revert to the previous version, or create a new deployment with a newer firmware.
+            </div>
+          )}
+
           {/* Consent stats — shown for admin-initiated consent-gated deployments */}
           {(awaitingConsent || job.consentStats) && (
             <div className="card mb-4">
