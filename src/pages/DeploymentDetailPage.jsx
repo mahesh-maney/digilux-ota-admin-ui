@@ -167,7 +167,7 @@ export default function DeploymentDetailPage() {
   };
 
   const terminal    = ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(job?.status);
-  const canRollback = ['SUCCEEDED', 'FAILED'].includes(job?.status);
+  const canRollback = ['SUCCEEDED', 'FAILED', 'TIMED_OUT'].includes(job?.status);
   const awaitingConsent = job?.status === 'AWAITING_CONSENT';
 
   return (
@@ -253,6 +253,16 @@ export default function DeploymentDetailPage() {
               Affected devices will automatically see the latest available firmware in the next update check —
               the failed job does not block future updates.
               Use <strong>Rollback</strong> to revert to the previous version, or create a new deployment with a newer firmware.
+            </div>
+          )}
+
+          {/* Timed-out deployment notice */}
+          {job.status === 'TIMED_OUT' && (
+            <div className="alert alert-warning" style={{ marginBottom: 16 }}>
+              <strong>This deployment timed out.</strong>{' '}
+              One or more devices did not complete the update within the allowed window.
+              Affected devices are unblocked and will see the latest available firmware on their next update check.
+              Use <strong>Rollback</strong> to revert to the previous version, or create a new deployment to retry.
             </div>
           )}
 

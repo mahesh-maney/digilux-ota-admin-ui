@@ -48,6 +48,7 @@ A React-based admin dashboard for managing Over-The-Air (OTA) firmware updates f
     - [IN_PROGRESS](#in_progress)
     - [SUCCEEDED](#succeeded)
     - [FAILED](#failed)
+    - [TIMED_OUT](#timed_out)
     - [CANCELLED](#cancelled)
     - [Consent statuses](#consent-statuses--per-device-per-deployment)
     - [Rollback](#rollback--undoing-an-update)
@@ -1369,6 +1370,28 @@ FAILED is a terminal state — you cannot resume or retry the same deployment.
 
 ---
 
+#### `TIMED_OUT`
+
+**What it means:** AWS IoT waited for the device to complete the job but the device did not report a final status within the configured timeout window (set in the IoT Job `timeoutConfig`). The device may have gone offline, lost connectivity, or the OTA agent crashed mid-install.
+
+**How a deployment enters this state:** AWS IoT internally marks the job execution as `TIMED_OUT` → the IoT Rule triggers `status_handler` → DynamoDB updated to `TIMED_OUT`.
+
+**What you see in the Admin UI:**
+- Row highlighted red (same as FAILED)
+- A yellow warning banner on the Deployment Detail page explaining that the device is now unblocked
+- The **↩ Rollback** button appears
+
+**Critical behaviour — a timed-out job does NOT permanently block the device:**
+`status_handler` clears `pendingJobId` from the device record as soon as it processes the `TIMED_OUT` event. The next time the device checks for updates it will see the latest available firmware normally. The `check_updates` response also includes a `lastFailedJob` block with `status: "TIMED_OUT"` so the Flutter app can inform the user what happened last time.
+
+**What you can do:**
+- **↩ Rollback** — if the device may have applied a partial install, roll back to the last confirmed-working version
+- **+ New Deployment** — retry the same or a newer version; the device owner will be prompted for consent again
+
+TIMED_OUT is a terminal state — you cannot resume the timed-out deployment.
+
+---
+
 #### `CANCELLED`
 
 **What it means:** An admin stopped the deployment before it reached a terminal state (SUCCEEDED or FAILED).
@@ -1411,12 +1434,13 @@ Admin clicks "Create Deployment"
                           ▼
                     IN_PROGRESS ──────────[Admin clicks Abort]──► CANCELLED (risky)
                           │
-              ┌───────────┴───────────┐
-              ▼                       ▼
-          SUCCEEDED                FAILED
-         (terminal)              (terminal)
-       Rollback available      Rollback available
-                               Next check-updates auto-clears stale job
+              ┌───────────┴──────────┬──────────────┐
+              ▼                      ▼              ▼
+          SUCCEEDED               FAILED        TIMED_OUT
+         (terminal)             (terminal)      (terminal)
+       Rollback available    Rollback available  Rollback available
+                             Next check-updates  Next check-updates
+                             auto-clears stale   auto-clears stale
 ```
 
 ---
@@ -1438,7 +1462,7 @@ The **User Consent card** on the Deployment Detail page shows live counts of all
 
 ### Rollback — undoing an update
 
-The **↩ Rollback** button is available on any `SUCCEEDED` or `FAILED` deployment. It automatically determines the best version to roll back to and creates a new deployment — you do not need to know the exact version number.
+The **↩ Rollback** button is available on any `SUCCEEDED`, `FAILED`, or `TIMED_OUT` deployment. It automatically determines the best version to roll back to and creates a new deployment — you do not need to know the exact version number.
 
 **How the rollback version is chosen:**
 

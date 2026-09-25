@@ -430,7 +430,7 @@ export default function DeploymentsPage() {
                   : d.status === 'IN_PROGRESS'                      ? 'row-inprogress'
                   : d.status === 'QUEUED'                           ? 'row-queued'
                   : d.status === 'AWAITING_CONSENT'                 ? 'row-consent'
-                  : d.status === 'FAILED' || d.status === 'REJECTED'? 'row-recalled'
+                  : d.status === 'FAILED' || d.status === 'REJECTED' || d.status === 'TIMED_OUT' ? 'row-recalled'
                   : d.status === 'CANCELLED'                        ? 'row-cancelled'
                   : ''
                 }>
