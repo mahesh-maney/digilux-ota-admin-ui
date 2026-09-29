@@ -1,5 +1,10 @@
 // ─── Branding ─────────────────────────────────────────────────────────────
-export const LOGO_URL     = import.meta.env.VITE_LOGO_URL     || '';
+// LOGO_SRC points to public/brand-logo.png — a physical file bundled into
+// the S3 deployment, never an external URL.  The deploy script copies the
+// customer's logo file to public/brand-logo.png before `npm run build`.
+// Supported formats: .png  .svg  .jpg  (rename to brand-logo.<ext> and
+// update VITE_LOGO_FILENAME below if not .png).
+export const LOGO_SRC     = '/' + (import.meta.env.VITE_LOGO_FILENAME || 'brand-logo.png');
 export const BRAND_NAME   = import.meta.env.VITE_BRAND_NAME   || 'Digilux';
 export const APP_SUBTITLE = import.meta.env.VITE_APP_SUBTITLE || 'OTA Admin';
 
@@ -51,8 +56,8 @@ export const DEVICE_TYPE_EXTENSIONS = (() => {
 
 // ─── Fixed enums (not customer-configurable) ──────────────────────────────
 export const RELEASE_TYPES  = ['PROD', 'BETA', 'CUSTOM'];
-export const ROLLOUT_STAGES = ['CANARY', 'PRODUCTION', 'BETA', 'CUSTOM'];
+export const ROLLOUT_STAGES = ['PRODUCTION', 'BETA', 'CUSTOM'];
 
 // Display labels for release types and rollout stages
 export const RELEASE_TYPE_LABELS  = { PROD: 'PROD', BETA: 'Beta (UAT)', CUSTOM: 'CUSTOM' };
-export const ROLLOUT_STAGE_LABELS = { CANARY: 'CANARY', PRODUCTION: 'PRODUCTION', BETA: 'Beta (UAT)', CUSTOM: 'CUSTOM' };
+export const ROLLOUT_STAGE_LABELS = { PRODUCTION: 'PRODUCTION', BETA: 'Beta (UAT)', CUSTOM: 'CUSTOM' };

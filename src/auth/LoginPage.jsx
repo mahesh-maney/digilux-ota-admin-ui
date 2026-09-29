@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from './AuthContext';
 import { logger } from '../utils/logger';
-import { LOGO_URL, BRAND_NAME, APP_SUBTITLE } from '../config';
+import { LOGO_SRC, BRAND_NAME, APP_SUBTITLE } from '../config';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -30,13 +30,11 @@ export default function LoginPage() {
     <div className="login-wrap">
       <div className="login-card">
         <div className="login-logo">
-          {LOGO_URL && (
-            <img
-              src={LOGO_URL}
-              alt={BRAND_NAME}
-              style={{ height: 52, objectFit: 'contain', background: '#1a202c', borderRadius: 8, padding: '6px 14px', marginBottom: 12 }}
-            />
-          )}
+          <img
+            src={LOGO_SRC}
+            alt={BRAND_NAME}
+            style={{ height: 52, objectFit: 'contain', background: '#1a202c', borderRadius: 8, padding: '6px 14px', marginBottom: 12 }}
+          />
           <span className="logo-text">{BRAND_NAME}</span>
           <span className="logo-sub">{APP_SUBTITLE}</span>
         </div>
