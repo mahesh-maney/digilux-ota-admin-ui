@@ -81,15 +81,17 @@ export default function DeploymentDetailPage() {
     try {
       const client = apiClient(token, logout);
 
-      // Step 1: scan deployment history — find the most recent SUCCEEDED job
-      // for the same package + target with a different version.
+      // Step 1: scan deployment history — find the most recent COMPLETED/SUCCEEDED
+      // deployment for the same package + stage with a different version.
       const { data: deplData } = await client.get('/ota/deployments');
       const history = (deplData.jobs || [])
         .filter(j =>
-          j.packageName === job.packageName &&
-          j.targetId    === job.targetId    &&
-          j.status      === 'SUCCEEDED'     &&
-          j.version     !== job.version
+          j.packageName    === job.packageName &&
+          j.rolloutStage   === job.rolloutStage &&
+          (j.status === 'COMPLETED' || j.status === 'SUCCEEDED') &&
+          j.version        !== job.version &&
+          // for non-PRODUCTION, also match the same targetId
+          (job.rolloutStage === 'PRODUCTION' || j.targetId === job.targetId)
         )
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
@@ -123,12 +125,15 @@ export default function DeploymentDetailPage() {
       }
 
       const fromHistory = history[0]?.version === rollbackVersion;
+      const targetDesc = job.rolloutStage === 'PRODUCTION'
+        ? 'All DGX-Production devices'
+        : `${job.targetType}: ${job.targetId}`;
       const confirmed = confirm(
         `Create rollback deployment?\n\n` +
         `Package : ${job.packageName}\n` +
         `From    : v${job.version}\n` +
         `To      : v${rollbackVersion}${fromHistory ? '  (last successfully deployed version)' : ''}\n` +
-        `Target  : ${job.targetType}: ${job.targetId}\n` +
+        `Target  : ${targetDesc}\n` +
         `Stage   : ${job.rolloutStage}`
       );
       if (!confirmed) return;
@@ -141,13 +146,11 @@ export default function DeploymentDetailPage() {
         fromVersion: job.version, toVersion: rollbackVersion,
       });
 
-      const { data: newJob } = await client.post('/ota/deployments', {
-        packageName:  job.packageName,
-        version:      rollbackVersion,
-        targetType:   job.targetType,
-        targetId:     job.targetId,
-        rolloutStage: job.rolloutStage,
-      });
+      const rollbackPayload = job.rolloutStage === 'PRODUCTION'
+        ? { packageName: job.packageName, version: rollbackVersion, rolloutStage: job.rolloutStage }
+        : { packageName: job.packageName, version: rollbackVersion, targetType: job.targetType, targetId: job.targetId, rolloutStage: job.rolloutStage };
+
+      const { data: newJob } = await client.post('/ota/deployments', rollbackPayload);
 
       logger.info('DeploymentDetailPage', 'Rollback deployment created', { newJobId: newJob.jobId });
       audit.log('DEPLOYMENT_ROLLBACK', { jobId, packageName: job.packageName }, 'SUCCESS', {
@@ -166,9 +169,13 @@ export default function DeploymentDetailPage() {
     }
   };
 
-  const terminal    = ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(job?.status);
-  const canRollback = ['SUCCEEDED', 'FAILED', 'TIMED_OUT'].includes(job?.status);
-  const awaitingConsent = job?.status === 'AWAITING_CONSENT';
+  // Deployment-level terminal statuses (new schema: COMPLETED/CANCELLED/FAILED)
+  // Also handle old records that may carry IoT-job-level statuses
+  const terminal    = ['COMPLETED', 'CANCELLED', 'FAILED', 'SUCCEEDED'].includes(job?.status);
+  const canRollback = ['COMPLETED', 'FAILED', 'TIMED_OUT', 'SUCCEEDED'].includes(job?.status);
+  const isActiveDeployment = job?.status === 'ACTIVE';
+  // backward compat: old records stored AWAITING_CONSENT at job level
+  const awaitingConsent = isActiveDeployment || job?.status === 'AWAITING_CONSENT';
 
   return (
     <div className="page">
@@ -218,7 +225,14 @@ export default function DeploymentDetailPage() {
               </div>
               <div className="detail-row">
                 <span className="detail-label">Target</span>
-                <span>{job.targetType}: {job.targetId}</span>
+                <span>
+                  {job.rolloutStage === 'PRODUCTION'
+                    ? 'All DGX-Production devices'
+                    : job.targetId
+                      ? `${job.targetType}: ${job.targetId}`
+                      : '—'
+                  }
+                </span>
               </div>
               <div className="detail-row">
                 <span className="detail-label">Rollout Stage</span>
@@ -246,6 +260,14 @@ export default function DeploymentDetailPage() {
             </div>
           </div>
 
+          {/* Completed deployment notice */}
+          {job.status === 'COMPLETED' && (
+            <div className="alert alert-success" style={{ marginBottom: 16 }}>
+              <strong>Deployment completed.</strong>{' '}
+              All target devices have finished processing this update.
+            </div>
+          )}
+
           {/* Failed deployment notice */}
           {job.status === 'FAILED' && (
             <div className="alert alert-warning" style={{ marginBottom: 16 }}>
@@ -266,16 +288,23 @@ export default function DeploymentDetailPage() {
             </div>
           )}
 
-          {/* Consent stats — shown for admin-initiated consent-gated deployments */}
+          {/* Consent stats — shown for active/consent-gated deployments */}
           {(awaitingConsent || job.consentStats) && (
             <div className="card mb-4">
               <h3>User Consent</h3>
-              {awaitingConsent && (
+              {isActiveDeployment && (
+                <p className="text-sm text-muted" style={{ marginBottom: 14 }}>
+                  Deployment is active. IoT jobs are created per-device once each user consents.
+                  Devices that decline will see the update again on their next check.
+                </p>
+              )}
+              {job?.status === 'AWAITING_CONSENT' && !isActiveDeployment && (
                 <p className="text-sm text-muted" style={{ marginBottom: 14 }}>
                   Waiting for device owners to approve this update. IoT Jobs will be created per-device once each user consents.
                 </p>
               )}
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {/* Consent-level stats (from consents table) */}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
                 {[
                   { label: 'Pending',  key: 'PENDING',  cls: 'badge-blue'   },
                   { label: 'Accepted', key: 'ACCEPTED', cls: 'badge-green'  },
@@ -303,6 +332,29 @@ export default function DeploymentDetailPage() {
                   </div>
                 )}
               </div>
+              {/* Deployment-level execution counters */}
+              {job.counters && (
+                <>
+                  <p className="text-sm text-muted" style={{ margin: '8px 0 6px' }}>Execution outcomes:</p>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Succeeded', key: 'succeeded', cls: 'badge-green'  },
+                      { label: 'Failed',    key: 'failed',    cls: 'badge-red'    },
+                      { label: 'Timed Out', key: 'timedOut',  cls: 'badge-orange' },
+                      { label: 'Cancelled', key: 'cancelled', cls: 'badge-grey'   },
+                    ].filter(({ key }) => job.counters[key] != null).map(({ label, key, cls }) => (
+                      <div key={key} style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center',
+                        background: 'var(--bg)', border: '1px solid var(--border)',
+                        borderRadius: 8, padding: '12px 20px', minWidth: 90,
+                      }}>
+                        <span style={{ fontSize: 24, fontWeight: 700 }}>{job.counters[key]}</span>
+                        <span className={`badge ${cls}`} style={{ marginTop: 4 }}>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 

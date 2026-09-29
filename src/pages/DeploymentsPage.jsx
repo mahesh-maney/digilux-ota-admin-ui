@@ -176,13 +176,13 @@ export default function DeploymentsPage() {
     e.preventDefault();
     setSubmitting(true);
     setError('');
-    // For BETA/CUSTOM, send targetIds — backend creates one job targeting all of them
+    // Build payload by stage — PRODUCTION has no target IDs (targets DGX-Production group)
     const payload = form.rolloutStage === 'BETA'
       ? { packageName: form.packageName, version: form.version, rolloutStage: form.rolloutStage, targetIds: selectedBetaIds }
       : form.rolloutStage === 'CUSTOM'
       ? { packageName: form.packageName, version: form.version, rolloutStage: form.rolloutStage, targetIds: customDeviceIds }
-      : form;
-    const resource = { packageName: form.packageName, version: form.version, rolloutStage: form.rolloutStage, ...(form.rolloutStage !== 'BETA' && { targetType: form.targetType, targetId: form.targetId }) };
+      : { packageName: form.packageName, version: form.version, rolloutStage: form.rolloutStage };
+    const resource = { packageName: form.packageName, version: form.version, rolloutStage: form.rolloutStage };
     logger.info('DeploymentsPage', 'Creating deployment', resource);
     audit.log('DEPLOYMENT_CREATE', resource, 'INITIATED');
     try {
@@ -190,9 +190,9 @@ export default function DeploymentsPage() {
       logger.info('DeploymentsPage', 'Deployment created', { jobId: data.jobId, ...resource });
       audit.log('DEPLOYMENT_CREATE', resource, 'SUCCESS', { jobId: data.jobId });
       setSuccessMsg(
-        data.status === 'AWAITING_CONSENT'
-          ? `Deployment created — awaiting consent from ${data.consentCount} device(s). Job ID: ${data.jobId}`
-          : `Job created: ${data.jobId}`
+        form.rolloutStage === 'PRODUCTION'
+          ? `Deployment created — targeting all DGX-Production devices. Deployment ID: ${data.jobId}`
+          : `Deployment created — awaiting consent from ${data.consentCount ?? 0} device(s). Deployment ID: ${data.jobId}`
       );
       setTimeout(() => setSuccessMsg(''), 5000);
       setShowForm(false);
@@ -379,13 +379,11 @@ export default function DeploymentsPage() {
                   </>
                 ) : (
                   <>
-                    <label>Device ID</label>
-                    <input
-                      value={form.targetId}
-                      onChange={e => setForm(f => ({ ...f, targetId: e.target.value }))}
-                      placeholder="uuid"
-                      required
-                    />
+                    <label>Target</label>
+                    <p className="text-muted" style={{ margin: '8px 0', fontSize: '0.88rem' }}>
+                      Targets all devices in the <strong>DGX-Production</strong> thing group.<br />
+                      Every registered device is automatically in this group.
+                    </p>
                   </>
                 )}
               </div>
@@ -393,8 +391,8 @@ export default function DeploymentsPage() {
             <div className="form-actions mt-4">
               <button type="submit" className="btn btn-primary"
                 disabled={submitting ||
-                  (form.rolloutStage === 'BETA'   && selectedBetaIds.length  === 0) ||
-                  (form.rolloutStage === 'CUSTOM' && customDeviceIds.length  === 0)}>
+                  (form.rolloutStage === 'BETA'        && selectedBetaIds.length  === 0) ||
+                  (form.rolloutStage === 'CUSTOM'      && customDeviceIds.length  === 0)}>
                 {submitting ? 'Creating…' : 'Create Deployment'}
               </button>
             </div>
@@ -426,12 +424,15 @@ export default function DeploymentsPage() {
             <tbody>
               {filterDeployments(sortDeployments(deployments, sortCol, sortDir), columnSearches).map(d => (
                 <tr key={d.jobId} className={
-                    d.status === 'SUCCEEDED'                        ? 'row-published'
-                  : d.status === 'IN_PROGRESS'                      ? 'row-inprogress'
-                  : d.status === 'QUEUED'                           ? 'row-queued'
-                  : d.status === 'AWAITING_CONSENT'                 ? 'row-consent'
-                  : d.status === 'FAILED' || d.status === 'REJECTED' || d.status === 'TIMED_OUT' ? 'row-recalled'
+                    d.status === 'COMPLETED'                         ? 'row-published'
+                  : d.status === 'ACTIVE'                           ? 'row-inprogress'
+                  : d.status === 'FAILED'                           ? 'row-recalled'
                   : d.status === 'CANCELLED'                        ? 'row-cancelled'
+                  // backward compat with old records
+                  : d.status === 'SUCCEEDED'                        ? 'row-published'
+                  : d.status === 'IN_PROGRESS' || d.status === 'QUEUED' ? 'row-inprogress'
+                  : d.status === 'AWAITING_CONSENT'                 ? 'row-consent'
+                  : d.status === 'REJECTED' || d.status === 'TIMED_OUT' ? 'row-recalled'
                   : ''
                 }>
                   <td>
@@ -439,7 +440,14 @@ export default function DeploymentsPage() {
                     <button className="btn-copy" title="Copy full Job ID" onClick={() => navigator.clipboard.writeText(d.jobId)}>⎘</button>
                   </td>
                   <td><strong>{d.packageName}-{d.version}</strong></td>
-                  <td className="text-sm">{d.targetType}: {d.targetId}</td>
+                  <td className="text-sm">
+                    {d.rolloutStage === 'PRODUCTION'
+                      ? <span className="text-muted">All DGX-Production</span>
+                      : d.targetId
+                        ? <>{d.targetType}: {d.targetId}</>
+                        : <span className="text-muted">—</span>
+                    }
+                  </td>
                   <td><span className="badge badge-grey">{ROLLOUT_STAGE_LABELS[d.rolloutStage] || d.rolloutStage}</span></td>
                   <td><StatusBadge status={d.status} /></td>
                   <td className="text-sm">{d.createdAt ? new Date(d.createdAt).toLocaleString() : '—'}</td>

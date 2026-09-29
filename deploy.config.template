@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# deploy.config.template — OTA Admin UI deployment configuration
+#
+# INSTRUCTIONS:
+#   1. Copy this file:   cp deploy.config.template deploy.config
+#   2. Fill in all REQUIRED values below.
+#   3. Run:              ./deploy.sh
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── AWS ───────────────────────────────────────────────────────────────────────
+
+# REQUIRED: AWS region where your S3 bucket lives.
+REGION="ap-south-1"
+
+# REQUIRED: S3 bucket name where the admin UI will be hosted.
+# The bucket must already exist and be configured for static website hosting.
+S3_BUCKET="your-ota-admin-ui-bucket"
+
+# Optional: CloudFront distribution ID for cache invalidation after deploy.
+# Leave blank if you are serving directly from S3 (no CloudFront).
+CLOUDFRONT_DIST_ID=""
+
+# ── API & Auth ────────────────────────────────────────────────────────────────
+
+# REQUIRED: Base URL of the OTA REST API, as seen from the browser.
+# Example: https://abc123.execute-api.ap-south-1.amazonaws.com/smarthome/api/v1
+API_BASE="https://YOUR_API_GW_ID.execute-api.REGION.amazonaws.com/STAGE/api/v1"
+
+# REQUIRED: Cognito hosted-UI base URL for the ADMIN pool.
+# Example: https://cognito-idp.ap-south-1.amazonaws.com/
+COGNITO_URL="https://cognito-idp.${REGION}.amazonaws.com/"
+
+# REQUIRED: Cognito App Client ID for the admin user pool.
+# Find it in Cognito → User Pools → <admin pool> → App clients.
+COGNITO_CLIENT="YOUR_ADMIN_COGNITO_CLIENT_ID"
+
+# ── Branding ──────────────────────────────────────────────────────────────────
+
+# Optional: Path to a logo image file (PNG, SVG, or JPG).
+# The file will be copied to public/ and bundled into the build.
+# Leave blank to keep the existing brand-logo.png in public/.
+LOGO_FILE=""
+
+# Optional: Brand name shown in the navbar and login page.
+BRAND_NAME="OTA Admin"
+
+# Optional: Subtitle shown below the brand name.
+APP_SUBTITLE="OTA Admin"

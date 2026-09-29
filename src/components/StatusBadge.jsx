@@ -1,5 +1,6 @@
 const MAP = {
   ACTIVE:           'badge-green',
+  COMPLETED:        'badge-green',
   PENDING:          'badge-yellow',
   CORRUPTED:        'badge-red',
   RECALLED:         'badge-orange',
@@ -7,9 +8,10 @@ const MAP = {
   IN_PROGRESS:      'badge-blue',
   SUCCEEDED:        'badge-green',
   FAILED:           'badge-red',
+  TIMED_OUT:        'badge-orange',
   CANCELLED:        'badge-grey',
   REJECTED:         'badge-red',
-  AWAITING_CONSENT: 'badge-yellow',
+  AWAITING_CONSENT: 'badge-yellow',  // kept for backward compat with old records
   ACCEPTED:         'badge-green',
   DECLINED:         'badge-red',
 };
