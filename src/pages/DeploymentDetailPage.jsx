@@ -23,8 +23,10 @@ export default function DeploymentDetailPage() {
   const [job,          setJob]          = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState('');
-  const [aborting,     setAborting]     = useState(false);
-  const [rollingBack,  setRollingBack]  = useState(false);
+  const [aborting,       setAborting]       = useState(false);
+  const [rollingBack,    setRollingBack]    = useState(false);
+  const [showAbortModal, setShowAbortModal] = useState(false);
+  const [abortReason,    setAbortReason]    = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -55,15 +57,22 @@ export default function DeploymentDetailPage() {
     load();
   }, [jobId]);
 
-  const handleAbort = async () => {
-    if (!confirm('Abort this deployment?')) return;
+  const handleAbort = () => {
+    setAbortReason('');
+    setShowAbortModal(true);
+  };
+
+  const handleAbortConfirm = async () => {
+    if (!abortReason.trim()) return;
+    setShowAbortModal(false);
     setAborting(true);
     logger.warn('DeploymentDetailPage', 'Abort initiated by user', { jobId });
     audit.log('DEPLOYMENT_ABORT', { jobId }, 'INITIATED');
     try {
-      await apiClient(token, logout).post(`/ota/deployments/${jobId}/abort`);
+      await apiClient(token, logout).post(`/ota/deployments/${jobId}/abort`, { reason: abortReason.trim() });
       logger.info('DeploymentDetailPage', 'Abort successful', { jobId });
       audit.log('DEPLOYMENT_ABORT', { jobId }, 'SUCCESS');
+      setAbortReason('');
       load();
     } catch (err) {
       const reason = err?.response?.data?.error || err?.response?.data?.message || 'Abort failed';
@@ -206,6 +215,47 @@ export default function DeploymentDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Abort reason modal */}
+      {showAbortModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }}>
+          <div className="card" style={{ width: 420, margin: 0 }}>
+            <h3 style={{ marginTop: 0 }}>Abort Deployment</h3>
+            <p className="text-sm text-muted" style={{ marginBottom: 12 }}>
+              This will cancel the deployment and stop new IoT jobs from being created.
+              A reason is required.
+            </p>
+            <label className="form-label">Reason <span style={{ color: 'var(--danger)' }}>*</span></label>
+            <textarea
+              className="form-input"
+              rows={3}
+              placeholder="e.g. Critical bug found in firmware v1.2.0"
+              value={abortReason}
+              onChange={e => setAbortReason(e.target.value)}
+              autoFocus
+              style={{ resize: 'vertical' }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowAbortModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-danger btn-sm"
+                onClick={handleAbortConfirm}
+                disabled={!abortReason.trim()}
+              >
+                Confirm Abort
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && <div className="alert alert-error">{error}</div>}
 
