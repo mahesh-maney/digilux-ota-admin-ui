@@ -228,7 +228,9 @@ export default function DeploymentDetailPage() {
               This will cancel the deployment and stop new IoT jobs from being created.
               A reason is required.
             </p>
-            <label className="form-label">Reason <span style={{ color: 'var(--danger)' }}>*</span></label>
+            <label className="form-label" style={{ display: 'block', marginBottom: 6 }}>
+              Reason <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
             <textarea
               className="form-input"
               rows={3}
@@ -236,7 +238,7 @@ export default function DeploymentDetailPage() {
               value={abortReason}
               onChange={e => setAbortReason(e.target.value)}
               autoFocus
-              style={{ resize: 'vertical' }}
+              style={{ resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
             />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
               <button

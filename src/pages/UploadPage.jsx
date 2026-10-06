@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
 import ProgressBar from '../components/ProgressBar';
@@ -7,6 +7,19 @@ import { sha256 } from 'js-sha256';
 import { DEVICE_TYPES, CHUNK_SIZE, DEVICE_TYPE_EXTENSIONS } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
+
+function parseSemver(v) {
+  return (v || '').split('.').filter(Boolean).map(n => parseInt(n, 10) || 0);
+}
+function versionGt(a, b) {
+  const pa = parseSemver(a), pb = parseSemver(b);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return false; // equal
+}
 
 // Compute SHA256 in browser — uses Web Crypto API when available (HTTPS/localhost),
 // falls back to js-sha256 (pure JS) for HTTP environments.
@@ -81,13 +94,49 @@ export default function UploadPage() {
     releaseType:  'BETA',
     releaseNotes: '',
   });
-  const [file,     setFile]     = useState(null);
-  const [checksum, setChecksum] = useState('');
-  const [hashing,  setHashing]  = useState(false);
-  const [stage,    setStage]    = useState('idle'); // idle | uploading | polling | done | error
-  const [progress, setProgress] = useState({ done: 0, total: 0 });
-  const [result,   setResult]   = useState(null);
-  const [error,    setError]    = useState('');
+  const [file,        setFile]        = useState(null);
+  const [checksum,    setChecksum]    = useState('');
+  const [hashing,     setHashing]     = useState(false);
+  const [stage,       setStage]       = useState('idle'); // idle | uploading | polling | done | error
+  const [progress,    setProgress]    = useState({ done: 0, total: 0 });
+  const [result,      setResult]      = useState(null);
+  const [error,       setError]       = useState('');
+  // packages fetched for version validation, keyed by deviceType
+  const [pkgsByType,  setPkgsByType]  = useState({});
+  const [versionError, setVersionError] = useState('');
+  const clientRef = useRef(null);
+
+  // Fetch all packages once and group by deviceType for version validation
+  // Only non-DELETED packages are considered for ordering/duplicate checks.
+  useEffect(() => {
+    const client = apiClient(token, logout);
+    clientRef.current = client;
+    client.get('/ota/packages').then(({ data }) => {
+      const pkgs = data.packages || data || [];
+      const grouped = {};
+      pkgs.forEach(p => {
+        const dt = p.deviceType;
+        if (!dt) return;
+        if (!grouped[dt]) grouped[dt] = [];
+        grouped[dt].push({ version: p.version, status: p.status });
+      });
+      setPkgsByType(grouped);
+    }).catch(() => {}); // non-critical
+  }, [token]);
+
+  const validateVersion = (version, deviceType) => {
+    const all = pkgsByType[deviceType] || [];
+    // Only non-DELETED packages count — deleted versions may be re-uploaded.
+    const active = all.filter(p => p.status !== 'DELETED').map(p => p.version);
+    if (active.includes(version)) {
+      return `Version ${version} already exists for ${deviceType}. Please use a different version.`;
+    }
+    const maxExisting = active.reduce((max, v) => (versionGt(v, max) ? v : max), '');
+    if (maxExisting && !versionGt(version, maxExisting)) {
+      return `Version must be greater than the current latest (${maxExisting}) for ${deviceType}.`;
+    }
+    return '';
+  };
 
   const handleFile = async (e) => {
     const f = e.target.files[0];
@@ -136,6 +185,8 @@ export default function UploadPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!file || !checksum || hashing) return;
+    const verErr = validateVersion(form.version, form.deviceType);
+    if (verErr) { setVersionError(verErr); return; }
     setError('');
     setResult(null);
     setStage('uploading');
@@ -283,6 +334,7 @@ export default function UploadPage() {
                   setFile(null);
                   setChecksum('');
                   setError('');
+                  setVersionError('');
                 }}
                 disabled={busy}
               >
@@ -294,11 +346,16 @@ export default function UploadPage() {
               <label>Version</label>
               <input
                 value={form.version}
-                onChange={e => setForm(f => ({ ...f, version: e.target.value }))}
+                onChange={e => {
+                  const v = e.target.value;
+                  setForm(f => ({ ...f, version: v }));
+                  setVersionError(v ? validateVersion(v, form.deviceType) : '');
+                }}
                 placeholder="1.2.3"
                 required
                 disabled={busy}
               />
+              {versionError && <span className="text-sm" style={{ color: 'var(--red)' }}>{versionError}</span>}
             </div>
 
             <div className="field">
@@ -370,7 +427,14 @@ export default function UploadPage() {
               {result.status === 'ACTIVE' && (
                 <span> · {(result.artifactSize / 1024 / 1024).toFixed(2)} MB · SHA256: {result.sha256?.slice(0, 16)}…</span>
               )}
-              {result.corruptReason && <span> · Reason: {result.corruptReason}</span>}
+              {result.status === 'CORRUPTED' && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  {result.corruptReason && <div>Reason: {result.corruptReason}</div>}
+                  <div style={{ marginTop: '0.25rem' }}>
+                    ⚠️ The uploaded file is corrupt. Please consider deleting this file under <strong>Packages</strong>, since this artefact cannot be deployed.
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -161,9 +161,8 @@ export default function BetaUsersPanel({ token, logout }) {
           <table>
             <thead>
               <tr>
-                {SearchSortTh('email',     'Email')}
+                {SearchSortTh('email',     'User ID')}
                 {SearchSortTh('deviceId',  'Device ID')}
-                {SearchSortTh('thingName', 'Thing Name')}
                 {SearchSortTh('addedAt',   'Added')}
                 {SearchSortTh('addedBy',   'Added By')}
                 <th></th>
@@ -173,8 +172,7 @@ export default function BetaUsersPanel({ token, logout }) {
               {filterUsers(sortUsers(users, sortCol, sortDir), columnSearches).map(u => (
                 <tr key={u.userId}>
                   <td>{u.email}</td>
-                  <td><code className="text-sm" title={u.deviceId}>{u.deviceId?.slice(0, 8)}…</code></td>
-                  <td><code className="text-sm">{u.thingName}</code></td>
+                  <td><code className="text-sm">{u.deviceId}</code></td>
                   <td className="text-sm">{u.addedAt ? new Date(u.addedAt).toLocaleDateString() : '—'}</td>
                   <td className="text-sm">{u.addedBy}</td>
                   <td>
