@@ -379,7 +379,6 @@ export default function PackagesPage() {
                 {SearchSortTh('artifactSize', 'Size')}
                 {SearchSortTh('releaseNotes', 'Release Notes')}
                 {SearchSortTh('createdAt',    'Created')}
-                {SearchSortTh('activated',    'Published')}
               </tr>
             </thead>
             <tbody>
@@ -399,27 +398,15 @@ export default function PackagesPage() {
                     <div className="action-cell">
                       {isAdmin && p.status === 'ACTIVE' && (
                         <>
-                          <button
-                            className={`btn btn-sm ${p.activated ? 'btn-secondary' : 'btn-primary'}`}
-                            onClick={() => toggleActivate(p)}
-                          >
-                            {p.activated ? 'Withdraw' : 'Publish'}
-                          </button>
                           {p.releaseType === 'BETA' && (
                             <button
                               className="btn btn-sm btn-promote"
                               onClick={() => promotePackage(p)}
-                              title="Promote Beta (UAT) → PROD (permanent)"
+                              title="Promote Beta → PROD and auto-create PRODUCTION deployment"
                             >
                               → PROD
                             </button>
                           )}
-                          <button
-                            className="btn btn-sm btn-recall"
-                            onClick={() => recallPackage(p)}
-                          >
-                            Recall
-                          </button>
                         </>
                       )}
                       {isAdmin && p.status === 'SUPERSEDED' && p.releaseType !== 'CUSTOM' && (
@@ -448,11 +435,6 @@ export default function PackagesPage() {
                   <td>{p.artifactSize ? `${(p.artifactSize / 1024 / 1024).toFixed(1)} MB` : '—'}</td>
                   <td className="text-sm text-muted">{p.releaseNotes || '—'}</td>
                   <td className="text-sm">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}</td>
-                  <td>
-                    <span className={`badge ${p.activated ? 'badge-green' : 'badge-grey'}`}>
-                      {p.activated ? 'Yes' : 'No'}
-                    </span>
-                  </td>
                 </tr>
               ))}
             </tbody>
