@@ -233,6 +233,59 @@ export default function PackagesPage() {
     }
   };
 
+  const [recallModal,   setRecallModal]   = useState(null);
+  const [recallReason,  setRecallReason]  = useState('');
+  const [recallWorking, setRecallWorking] = useState(false);
+  const [recallError,   setRecallError]   = useState('');
+  const recallReasonRef = useRef(null);
+
+  const openRecallModal = (pkg) => {
+    setRecallModal(pkg);
+    setRecallReason('');
+    setRecallWorking(false);
+    setRecallError('');
+    setTimeout(() => recallReasonRef.current?.focus(), 50);
+  };
+
+  const closeRecallModal = () => {
+    setRecallModal(null);
+    setRecallError('');
+  };
+
+  const submitRecall = async () => {
+    const pkg = recallModal;
+    if (!pkg || !recallReason.trim()) return;
+    setRecallWorking(true);
+    setRecallError('');
+    const resource = { packageName: pkg.packageName, version: pkg.version };
+    logger.info('PackagesPage', 'PACKAGE_RECALL initiated', { ...resource, reason: recallReason });
+    audit.log('PACKAGE_RECALL', resource, 'INITIATED', { reason: recallReason });
+    try {
+      const { data } = await apiClient(token, logout).patch(
+        `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
+        { recalled: true, recallReason: recallReason.trim() },
+      );
+      logger.info('PackagesPage', 'PACKAGE_RECALL successful', resource);
+      audit.log('PACKAGE_RECALL', resource, 'SUCCESS', { reason: recallReason });
+      let msg = `${pkg.packageName} v${pkg.version} recalled.`;
+      const cancelled  = data.cancelledDeployments  || [];
+      const inProgress = data.inProgressDeployments || [];
+      if (cancelled.length)  msg += ` ${cancelled.length} queued deployment(s) cancelled.`;
+      if (inProgress.length) msg += ` ⚠ ${inProgress.length} in-progress job(s) still running — abort them manually.`;
+      setActionMsg(msg);
+      setTimeout(() => setActionMsg(''), inProgress.length ? 10000 : 5000);
+      closeRecallModal();
+      load();
+    } catch (err) {
+      const errReason = err?.response?.data?.error || 'Recall failed';
+      logger.error('PackagesPage', 'PACKAGE_RECALL failed', { ...resource, reason: errReason });
+      audit.log('PACKAGE_RECALL', resource, 'FAILURE', { reason: errReason });
+      setRecallError(errReason);
+    } finally {
+      setRecallWorking(false);
+    }
+  };
+
   const [deleteModal, setDeleteModal]           = useState(null); // pkg or null
   const [deleteReason, setDeleteReason]         = useState('');
   const [deleteConfirm, setDeleteConfirm]       = useState('');
@@ -295,47 +348,6 @@ export default function PackagesPage() {
     }
   };
 
-  const recallPackage = async (pkg) => {
-    const reason = prompt(
-      `Recall ${pkg.packageName} v${pkg.version}?\n\n` +
-      `This will immediately remove it from all device update checks and flag it in audit logs.\n\n` +
-      `Enter recall reason (required):`,
-    );
-    if (reason === null) return; // cancelled
-    if (!reason.trim()) { alert('Recall reason is required.'); return; }
-
-    const resource = { packageName: pkg.packageName, version: pkg.version };
-    logger.info('PackagesPage', 'PACKAGE_RECALL initiated', { ...resource, reason });
-    audit.log('PACKAGE_RECALL', resource, 'INITIATED', { reason });
-
-    try {
-      const { data } = await apiClient(token, logout).patch(
-        `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
-        { recalled: true, recallReason: reason.trim() },
-      );
-      logger.info('PackagesPage', 'PACKAGE_RECALL successful', resource);
-      audit.log('PACKAGE_RECALL', resource, 'SUCCESS', {
-        reason,
-        cancelledDeployments: data.cancelledDeployments?.length ?? 0,
-        inProgressDeployments: data.inProgressDeployments?.length ?? 0,
-      });
-
-      let msg = `${pkg.packageName} v${pkg.version} recalled.`;
-      const cancelled   = data.cancelledDeployments   || [];
-      const inProgress  = data.inProgressDeployments  || [];
-      if (cancelled.length)  msg += ` ${cancelled.length} queued deployment(s) automatically cancelled.`;
-      if (inProgress.length) msg += ` ⚠ ${inProgress.length} in-progress deployment(s) still running — abort them manually.`;
-
-      setActionMsg(msg);
-      setTimeout(() => setActionMsg(''), inProgress.length ? 10000 : 5000);
-      load();
-    } catch (err) {
-      const errReason = err?.response?.data?.error || err?.response?.data?.message || 'Recall failed';
-      logger.error('PackagesPage', 'PACKAGE_RECALL failed', { ...resource, reason: errReason });
-      audit.log('PACKAGE_RECALL', resource, 'FAILURE', { reason: errReason });
-      setError(errReason);
-    }
-  };
 
   return (
     <div className="page">
@@ -407,6 +419,13 @@ export default function PackagesPage() {
                               → PROD
                             </button>
                           )}
+                          <button
+                            className="btn btn-sm btn-recall"
+                            onClick={() => openRecallModal(p)}
+                            title="Recall — marks as unsafe, stops future deployments"
+                          >
+                            ⚠ Recall
+                          </button>
                         </>
                       )}
                       {isAdmin && p.status === 'SUPERSEDED' && p.releaseType !== 'CUSTOM' && (
@@ -439,6 +458,52 @@ export default function PackagesPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Recall Modal ──────────────────────────────────────────────── */}
+      {recallModal && (
+        <div className="modal-backdrop" onClick={closeRecallModal}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3 className="modal-title">Recall Package</h3>
+            <div className="modal-body">
+              <p>
+                You are about to recall <strong>{recallModal.fileName || recallModal.packageName}</strong> v<strong>{recallModal.version}</strong>.
+              </p>
+              <div className="alert alert-warn" style={{marginBottom: 12}}>
+                ⚠ Recalling will immediately remove this version from all device update checks.
+                Any active deployment for this version must be <strong>aborted first</strong>.
+                Recalled packages cannot be re-deployed — upload a new version instead.
+              </div>
+              <label className="modal-label" style={{display:'block'}}>
+                Recall reason <span style={{color:'#dc2626'}}>*</span>
+              </label>
+              <textarea
+                ref={recallReasonRef}
+                className="modal-textarea"
+                style={{width:'100%', boxSizing:'border-box'}}
+                rows={3}
+                placeholder="e.g. Critical bug found in v4.5.0 — do not deploy"
+                value={recallReason}
+                onChange={e => setRecallReason(e.target.value)}
+              />
+              {recallError && (
+                <div className="alert alert-error" style={{marginTop: 12}}>{recallError}</div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={closeRecallModal} disabled={recallWorking}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-delete"
+                disabled={recallWorking || !recallReason.trim()}
+                onClick={submitRecall}
+              >
+                {recallWorking ? 'Recalling…' : '⚠ Confirm Recall'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
