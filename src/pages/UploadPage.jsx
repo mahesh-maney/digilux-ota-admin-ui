@@ -63,7 +63,6 @@ async function uploadChunks(chunkUrls, file, chunkSize, onProgress) {
         const resp = await fetch(url, {
           method: 'PUT',
           body:   blob,
-          headers: { 'Content-Type': 'application/octet-stream' },
         });
 
         if (!resp.ok) {
