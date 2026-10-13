@@ -55,7 +55,7 @@ async function uploadChunks(chunkUrls, file, chunkSize, onProgress) {
       batch.map(async ({ partNumber, url }) => {
         const start    = (partNumber - 1) * chunkSize;
         const end      = Math.min(start + chunkSize, file.size);
-        const blob     = file.slice(start, end);
+        const blob     = new Blob([file.slice(start, end)]);
         const byteSize = end - start;
 
         logger.debug('UploadPage', `Uploading chunk ${partNumber}`, { byteSize, start, end });
