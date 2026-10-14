@@ -8,12 +8,9 @@ import { DEVICE_TYPES, CHUNK_SIZE, DEVICE_TYPE_EXTENSIONS } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
-const SEMVER_RE = /^\d+\.\d+\.\d+$/;
+import { stripHtml } from '../utils/sanitize';
 
-// Strip HTML tags from text before sending to backend
-function stripHtml(s) {
-  return s.replace(/<[^>]*>/g, '').trim();
-}
+const SEMVER_RE = /^\d+\.\d+\.\d+$/;
 
 function parseSemver(v) {
   return (v || '').split('.').filter(Boolean).map(n => parseInt(n, 10) || 0);
@@ -223,6 +220,7 @@ export default function UploadPage() {
       logger.info('UploadPage', 'Step 1: Requesting upload session', { ...resource, checksum, totalSize: file.size });
       const { data } = await client.post('/ota/packages/upload-artefact', {
         ...form,
+        version:      stripHtml(form.version),
         releaseNotes: stripHtml(form.releaseNotes),
         checksum,
         totalSize: file.size,

@@ -6,9 +6,7 @@ import { DEVICE_TYPES, RELEASE_TYPE_LABELS } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
-function stripHtml(s) {
-  return s.replace(/<[^>]*>/g, '').trim();
-}
+import { stripHtml } from '../utils/sanitize';
 
 function compareSemver(a, b) {
   const pa = a.split('.').map(n => parseInt(n) || 0);

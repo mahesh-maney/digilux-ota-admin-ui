@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { stripHtml } from '../utils/sanitize';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
@@ -62,7 +63,7 @@ export default function DeploymentsPage() {
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const addCustomDevice = () => {
-    const id = customDeviceInput.trim();
+    const id = stripHtml(customDeviceInput).trim();
     if (!id) return;
     if (!UUID_RE.test(id)) {
       setCustomDeviceError('Invalid format — expected UUID (e.g. 550e8400-e29b-41d4-a716-446655440000)');

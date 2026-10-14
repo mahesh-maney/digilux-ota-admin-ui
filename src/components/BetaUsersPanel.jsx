@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../api/client';
+import { stripHtml } from '../utils/sanitize';
 
 function sortUsers(users, col, dir) {
   if (!col) return users;
@@ -102,7 +103,7 @@ export default function BetaUsersPanel({ token, logout }) {
     setError('');
     setSuccess('');
     try {
-      const { data } = await client.post('/ota/beta-users', { email: email.trim().toLowerCase() });
+      const { data } = await client.post('/ota/beta-users', { email: stripHtml(email).toLowerCase() });
       setSuccess(`Added ${data.email} (device: ${data.deviceId})`);
       setEmail('');
       await load();
