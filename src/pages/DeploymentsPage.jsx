@@ -56,8 +56,26 @@ export default function DeploymentsPage() {
   const [betaUsers,             setBetaUsers]             = useState([]);
   const [selectedBetaEmails,    setSelectedBetaEmails]    = useState(new Set());
   const [selectedDevicePerUser, setSelectedDevicePerUser] = useState({});
-  const [customDeviceIds,  setCustomDeviceIds]  = useState([]);
-  const [customDeviceInput,setCustomDeviceInput]= useState('');
+  const [customDeviceIds,    setCustomDeviceIds]    = useState([]);
+  const [customDeviceInput,  setCustomDeviceInput]  = useState('');
+  const [customDeviceError,  setCustomDeviceError]  = useState('');
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const addCustomDevice = () => {
+    const id = customDeviceInput.trim();
+    if (!id) return;
+    if (!UUID_RE.test(id)) {
+      setCustomDeviceError('Invalid format — expected UUID (e.g. 550e8400-e29b-41d4-a716-446655440000)');
+      return;
+    }
+    if (customDeviceIds.includes(id)) {
+      setCustomDeviceError('Device ID already in the list');
+      return;
+    }
+    setCustomDeviceError('');
+    setCustomDeviceIds(prev => [...prev, id]);
+    setCustomDeviceInput('');
+  };
   const [submitting,      setSubmitting]      = useState(false);
   const [successMsg,      setSuccessMsg]      = useState('');
   const [sortCol,         setSortCol]         = useState('');
@@ -335,29 +353,18 @@ export default function DeploymentsPage() {
                     <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
                       <input
                         value={customDeviceInput}
-                        onChange={e => setCustomDeviceInput(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const id = customDeviceInput.trim();
-                            if (id && !customDeviceIds.includes(id))
-                              setCustomDeviceIds(prev => [...prev, id]);
-                            setCustomDeviceInput('');
-                          }
-                        }}
-                        placeholder="Paste device ID and press Enter"
+                        onChange={e => { setCustomDeviceInput(e.target.value); setCustomDeviceError(''); }}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomDevice(); } }}
+                        placeholder="Paste device UUID and press Enter"
                         style={{ flex: 1 }}
                       />
-                      <button type="button" className="btn btn-secondary btn-sm"
-                        onClick={() => {
-                          const id = customDeviceInput.trim();
-                          if (id && !customDeviceIds.includes(id))
-                            setCustomDeviceIds(prev => [...prev, id]);
-                          setCustomDeviceInput('');
-                        }}>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={addCustomDevice}>
                         Add
                       </button>
                     </div>
+                    {customDeviceError && (
+                      <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--red, #dc2626)' }}>{customDeviceError}</p>
+                    )}
                     {customDeviceIds.length > 0 && (
                       <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                         {customDeviceIds.map(id => (

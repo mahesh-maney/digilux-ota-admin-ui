@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Digilux OTA Admin</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Clickjacking protection: redirect out of any iframe -->
+    <script>if(window.self!==window.top){try{window.top.location.replace(window.self.location.href);}catch(e){document.body.innerHTML='';window.self.location.replace('about:blank');}}</script>
     <!-- Runtime config: edit public/config.js to tune values without rebuilding -->
     <script src="/config.js"></script>
   </head>

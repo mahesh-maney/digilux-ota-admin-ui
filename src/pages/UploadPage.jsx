@@ -8,6 +8,13 @@ import { DEVICE_TYPES, CHUNK_SIZE, DEVICE_TYPE_EXTENSIONS } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
+const SEMVER_RE = /^\d+\.\d+\.\d+$/;
+
+// Strip HTML tags from text before sending to backend
+function stripHtml(s) {
+  return s.replace(/<[^>]*>/g, '').trim();
+}
+
 function parseSemver(v) {
   return (v || '').split('.').filter(Boolean).map(n => parseInt(n, 10) || 0);
 }
@@ -124,6 +131,7 @@ export default function UploadPage() {
   }, [token]);
 
   const validateVersion = (version, deviceType) => {
+    if (!SEMVER_RE.test(version)) return 'Version must be X.Y.Z format with numbers only (e.g. 1.2.3)';
     const all = pkgsByType[deviceType] || [];
     // Only non-DELETED packages count — deleted versions may be re-uploaded.
     const active = all.filter(p => p.status !== 'DELETED').map(p => p.version);
@@ -150,6 +158,21 @@ export default function UploadPage() {
       const ext = '.' + f.name.split('.').pop().toLowerCase();
       if (!allowedExts.includes(ext)) {
         setError(`Invalid file type "${ext}" for ${form.deviceType}. Allowed: ${allowedExts.join(', ')}`);
+        e.target.value = '';
+        return;
+      }
+    }
+    // Max file size guard — 500 MB is unusually large for embedded firmware
+    if (f.size > 500 * 1024 * 1024) {
+      setError('File exceeds 500 MB. Verify this is the correct firmware file.');
+      e.target.value = '';
+      return;
+    }
+    // Magic bytes check for JAR files (must be ZIP format: PK signature 0x50 0x4B)
+    if (ext === '.jar') {
+      const header = new Uint8Array(await f.slice(0, 2).arrayBuffer());
+      if (header[0] !== 0x50 || header[1] !== 0x4b) {
+        setError('File does not appear to be a valid JAR archive (missing ZIP/PK signature).');
         e.target.value = '';
         return;
       }
@@ -200,6 +223,7 @@ export default function UploadPage() {
       logger.info('UploadPage', 'Step 1: Requesting upload session', { ...resource, checksum, totalSize: file.size });
       const { data } = await client.post('/ota/packages/upload-artefact', {
         ...form,
+        releaseNotes: stripHtml(form.releaseNotes),
         checksum,
         totalSize: file.size,
       });
@@ -351,6 +375,8 @@ export default function UploadPage() {
                   setVersionError(v ? validateVersion(v, form.deviceType) : '');
                 }}
                 placeholder="1.2.3"
+                pattern="[0-9]+\.[0-9]+\.[0-9]+"
+                title="Version must be X.Y.Z format (e.g. 1.2.3)"
                 required
                 disabled={busy}
               />

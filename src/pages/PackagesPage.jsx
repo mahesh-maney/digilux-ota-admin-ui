@@ -528,9 +528,11 @@ export default function PackagesPage() {
                 style={{width:'100%', boxSizing:'border-box'}}
                 rows={3}
                 placeholder="e.g. Critical bug found in v4.5.0 — do not deploy"
+                maxLength={500}
                 value={recallReason}
                 onChange={e => setRecallReason(e.target.value)}
               />
+              <span className="text-sm text-muted" style={{float:'right'}}>{recallReason.length}/500</span>
               {recallError && (
                 <div className="alert alert-error" style={{marginTop: 12}}>{recallError}</div>
               )}
@@ -578,9 +580,11 @@ export default function PackagesPage() {
                 className="modal-textarea"
                 rows={3}
                 placeholder="e.g. Cleanup after failed test upload"
+                maxLength={500}
                 value={deleteReason}
                 onChange={e => setDeleteReason(e.target.value)}
               />
+              <span className="text-sm text-muted" style={{float:'right'}}>{deleteReason.length}/500</span>
 
               <label className="modal-label">
                 Type <code>{deleteModal.version}</code> to confirm
