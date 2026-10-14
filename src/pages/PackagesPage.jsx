@@ -6,6 +6,10 @@ import { DEVICE_TYPES, RELEASE_TYPE_LABELS } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
+function stripHtml(s) {
+  return s.replace(/<[^>]*>/g, '').trim();
+}
+
 function compareSemver(a, b) {
   const pa = a.split('.').map(n => parseInt(n) || 0);
   const pb = b.split('.').map(n => parseInt(n) || 0);
@@ -284,7 +288,7 @@ export default function PackagesPage() {
     try {
       const { data } = await apiClient(token, logout).patch(
         `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
-        { recalled: true, recallReason: recallReason.trim() },
+        { recalled: true, recallReason: stripHtml(recallReason) },
       );
       logger.info('PackagesPage', 'PACKAGE_RECALL successful', resource);
       audit.log('PACKAGE_RECALL', resource, 'SUCCESS', { reason: recallReason });
@@ -344,7 +348,7 @@ export default function PackagesPage() {
     try {
       const resp = await apiClient(token, logout).delete(
         `/ota/packages/${pkg.packageName}/${pkg.version}`,
-        { data: { reason: deleteReason.trim(), force } },
+        { data: { reason: stripHtml(deleteReason), force } },
       );
       const msg = resp.data?.message || `${pkg.packageName} v${pkg.version} deleted.`;
       logger.info('PackagesPage', 'PACKAGE_DELETE successful', resource);

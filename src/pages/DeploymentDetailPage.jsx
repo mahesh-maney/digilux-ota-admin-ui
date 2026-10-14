@@ -7,6 +7,10 @@ import { ROLLOUT_STAGE_LABELS } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
+function stripHtml(s) {
+  return s.replace(/<[^>]*>/g, '').trim();
+}
+
 function compareSemver(a, b) {
   const pa = a.split('.').map(n => parseInt(n) || 0);
   const pb = b.split('.').map(n => parseInt(n) || 0);
@@ -69,7 +73,7 @@ export default function DeploymentDetailPage() {
     logger.warn('DeploymentDetailPage', 'Abort initiated by user', { jobId });
     audit.log('DEPLOYMENT_ABORT', { jobId }, 'INITIATED');
     try {
-      await apiClient(token, logout).post(`/ota/deployments/${jobId}/abort`, { reason: abortReason.trim() });
+      await apiClient(token, logout).post(`/ota/deployments/${jobId}/abort`, { reason: stripHtml(abortReason) });
       logger.info('DeploymentDetailPage', 'Abort successful', { jobId });
       audit.log('DEPLOYMENT_ABORT', { jobId }, 'SUCCESS');
       setAbortReason('');
@@ -235,11 +239,13 @@ export default function DeploymentDetailPage() {
               className="form-input"
               rows={3}
               placeholder="e.g. Critical bug found in firmware v1.2.0"
+              maxLength={500}
               value={abortReason}
               onChange={e => setAbortReason(e.target.value)}
               autoFocus
               style={{ resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
             />
+            <span className="text-sm text-muted" style={{ float: 'right' }}>{abortReason.length}/500</span>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
               <button
                 className="btn btn-secondary btn-sm"

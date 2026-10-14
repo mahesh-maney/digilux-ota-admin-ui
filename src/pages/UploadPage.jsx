@@ -153,9 +153,9 @@ export default function UploadPage() {
       e.target.value = '';
       return;
     }
+    const ext = '.' + f.name.split('.').pop().toLowerCase();
     const allowedExts = DEVICE_TYPE_EXTENSIONS[form.deviceType];
     if (allowedExts?.length) {
-      const ext = '.' + f.name.split('.').pop().toLowerCase();
       if (!allowedExts.includes(ext)) {
         setError(`Invalid file type "${ext}" for ${form.deviceType}. Allowed: ${allowedExts.join(', ')}`);
         e.target.value = '';
