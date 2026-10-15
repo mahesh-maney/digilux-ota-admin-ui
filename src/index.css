@@ -99,8 +99,8 @@ input:disabled, select:disabled { background: var(--bg); color: var(--text-muted
   border-radius: 12px; padding: 40px 36px; width: 100%; max-width: 380px;
   box-shadow: 0 4px 20px rgba(0,0,0,.08);
 }
-.login-logo { text-align: center; margin-bottom: 28px; }
-.login-logo .logo-text { font-size: 22px; }
+.login-logo { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 28px; }
+.login-logo .logo-text { font-size: 22px; margin-top: 8px; }
 .login-logo .logo-sub  { font-size: 14px; display: block; margin-top: 2px; }
 .login-card .field     { margin-bottom: 16px; }
 .login-card button     { margin-top: 8px; }
