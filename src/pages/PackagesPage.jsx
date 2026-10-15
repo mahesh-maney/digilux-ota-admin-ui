@@ -63,6 +63,10 @@ export default function PackagesPage() {
   const [sortDir,        setSortDir]        = useState(1);
   const [activeSearchCol, setActiveSearchCol] = useState(null);
   const [columnSearches,  setColumnSearches]  = useState({});
+  const [confirmModal,    setConfirmModal]    = useState(null);
+
+  const openConfirm = (config) => setConfirmModal(config);
+  const closeConfirm = () => setConfirmModal(null);
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => -d);
@@ -149,88 +153,105 @@ export default function PackagesPage() {
     load();
   }, [statusFilter, typeFilter]);
 
-  const toggleActivate = async (pkg) => {
-    const action = pkg.activated ? 'PACKAGE_WITHDRAW' : 'PACKAGE_PUBLISH';
-    const confirmMsg = pkg.activated
-      ? `Withdraw ${pkg.packageName} v${pkg.version}? Devices will no longer receive this update.`
-      : `Publish ${pkg.packageName} v${pkg.version}? Devices will start receiving this update.`;
-    if (!confirm(confirmMsg)) return;
-    const newVal  = !pkg.activated;
-    const resource = { packageName: pkg.packageName, version: pkg.version };
-
-    logger.info('PackagesPage', `${action} initiated`, resource);
-    audit.log(action, resource, 'INITIATED');
-
-    try {
-      await apiClient(token, logout).patch(
-        `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
-        { activated: newVal },
-      );
-      logger.info('PackagesPage', `${action} successful`, resource);
-      audit.log(action, resource, 'SUCCESS');
-      setActionMsg(`${pkg.packageName} v${pkg.version} ${newVal ? 'published' : 'withdrawn'}`);
-      setTimeout(() => setActionMsg(''), 3000);
-      load();
-    } catch (err) {
-      const reason = err?.response?.data?.error || err?.response?.data?.message || 'Action failed';
-      logger.error('PackagesPage', `${action} failed`, { ...resource, reason });
-      audit.log(action, resource, 'FAILURE', { reason });
-      setError(reason);
-    }
+  const toggleActivate = (pkg) => {
+    const isWithdraw = pkg.activated;
+    openConfirm({
+      title: isWithdraw ? 'Withdraw Package' : 'Publish Package',
+      body: isWithdraw
+        ? `Withdraw ${pkg.packageName} v${pkg.version}?\n\nDevices will no longer receive this update.`
+        : `Publish ${pkg.packageName} v${pkg.version}?\n\nDevices will start receiving this update.`,
+      confirmLabel: isWithdraw ? 'Withdraw' : 'Publish',
+      danger: isWithdraw,
+      onConfirm: async () => {
+        const action   = isWithdraw ? 'PACKAGE_WITHDRAW' : 'PACKAGE_PUBLISH';
+        const newVal   = !pkg.activated;
+        const resource = { packageName: pkg.packageName, version: pkg.version };
+        logger.info('PackagesPage', `${action} initiated`, resource);
+        audit.log(action, resource, 'INITIATED');
+        try {
+          await apiClient(token, logout).patch(
+            `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
+            { activated: newVal },
+          );
+          logger.info('PackagesPage', `${action} successful`, resource);
+          audit.log(action, resource, 'SUCCESS');
+          setActionMsg(`${pkg.packageName} v${pkg.version} ${newVal ? 'published' : 'withdrawn'}`);
+          setTimeout(() => setActionMsg(''), 3000);
+          load();
+        } catch (err) {
+          const reason = err?.response?.data?.error || err?.response?.data?.message || 'Action failed';
+          logger.error('PackagesPage', `${action} failed`, { ...resource, reason });
+          audit.log(action, resource, 'FAILURE', { reason });
+          setError(reason);
+        }
+      },
+    });
   };
 
-  const promotePackage = async (pkg) => {
-    if (!confirm(
-      `Promote ${pkg.packageName} v${pkg.version} from Beta (UAT) → PROD?\n\n` +
-      `This is permanent — PROD cannot be downgraded. ` +
-      `Lower PROD versions of this package will be superseded.`
-    )) return;
-    const resource = { packageName: pkg.packageName, version: pkg.version };
-    logger.info('PackagesPage', 'PACKAGE_PROMOTE initiated', resource);
-    audit.log('PACKAGE_PROMOTE', resource, 'INITIATED');
-    try {
-      await apiClient(token, logout).patch(
-        `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
-        { promote: true },
-      );
-      logger.info('PackagesPage', 'PACKAGE_PROMOTE successful', resource);
-      audit.log('PACKAGE_PROMOTE', resource, 'SUCCESS');
-      setActionMsg(`${pkg.packageName} v${pkg.version} promoted to PROD.`);
-      setTimeout(() => setActionMsg(''), 4000);
-      load();
-    } catch (err) {
-      const reason = err?.response?.data?.error || err?.response?.data?.message || 'Promote failed';
-      logger.error('PackagesPage', 'PACKAGE_PROMOTE failed', { ...resource, reason });
-      audit.log('PACKAGE_PROMOTE', resource, 'FAILURE', { reason });
-      setError(reason);
-    }
+  const promotePackage = (pkg) => {
+    openConfirm({
+      title: 'Promote to PROD',
+      body:
+        `Promote ${pkg.packageName} v${pkg.version} from Beta (UAT) to PROD?\n\n` +
+        `This is permanent — PROD cannot be downgraded. ` +
+        `Lower PROD versions of this package will be superseded.`,
+      confirmLabel: 'Promote to PROD',
+      danger: false,
+      onConfirm: async () => {
+        const resource = { packageName: pkg.packageName, version: pkg.version };
+        logger.info('PackagesPage', 'PACKAGE_PROMOTE initiated', resource);
+        audit.log('PACKAGE_PROMOTE', resource, 'INITIATED');
+        try {
+          await apiClient(token, logout).patch(
+            `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
+            { promote: true },
+          );
+          logger.info('PackagesPage', 'PACKAGE_PROMOTE successful', resource);
+          audit.log('PACKAGE_PROMOTE', resource, 'SUCCESS');
+          setActionMsg(`${pkg.packageName} v${pkg.version} promoted to PROD.`);
+          setTimeout(() => setActionMsg(''), 4000);
+          load();
+        } catch (err) {
+          const reason = err?.response?.data?.error || err?.response?.data?.message || 'Promote failed';
+          logger.error('PackagesPage', 'PACKAGE_PROMOTE failed', { ...resource, reason });
+          audit.log('PACKAGE_PROMOTE', resource, 'FAILURE', { reason });
+          setError(reason);
+        }
+      },
+    });
   };
 
-  const restorePackage = async (pkg) => {
-    if (!confirm(
-      `Restore ${pkg.packageName} v${pkg.version} to ACTIVE?\n\n` +
-      `Any currently ACTIVE ${pkg.releaseType} version of this package will be superseded. ` +
-      `Use this to roll back a buggy release.`
-    )) return;
-    const resource = { packageName: pkg.packageName, version: pkg.version };
-    logger.info('PackagesPage', 'PACKAGE_RESTORE initiated', resource);
-    audit.log('PACKAGE_RESTORE', resource, 'INITIATED');
-    try {
-      await apiClient(token, logout).patch(
-        `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
-        { restore: true },
-      );
-      logger.info('PackagesPage', 'PACKAGE_RESTORE successful', resource);
-      audit.log('PACKAGE_RESTORE', resource, 'SUCCESS');
-      setActionMsg(`${pkg.packageName} v${pkg.version} restored to ACTIVE.`);
-      setTimeout(() => setActionMsg(''), 4000);
-      load();
-    } catch (err) {
-      const reason = err?.response?.data?.error || err?.response?.data?.message || 'Restore failed';
-      logger.error('PackagesPage', 'PACKAGE_RESTORE failed', { ...resource, reason });
-      audit.log('PACKAGE_RESTORE', resource, 'FAILURE', { reason });
-      setError(reason);
-    }
+  const restorePackage = (pkg) => {
+    openConfirm({
+      title: 'Restore Package',
+      body:
+        `Restore ${pkg.packageName} v${pkg.version} to ACTIVE?\n\n` +
+        `Any currently ACTIVE ${pkg.releaseType} version of this package will be superseded. ` +
+        `Use this to roll back a buggy release.`,
+      confirmLabel: 'Restore',
+      danger: false,
+      onConfirm: async () => {
+        const resource = { packageName: pkg.packageName, version: pkg.version };
+        logger.info('PackagesPage', 'PACKAGE_RESTORE initiated', resource);
+        audit.log('PACKAGE_RESTORE', resource, 'INITIATED');
+        try {
+          await apiClient(token, logout).patch(
+            `/ota/packages/${pkg.packageName}/${pkg.version}/activate`,
+            { restore: true },
+          );
+          logger.info('PackagesPage', 'PACKAGE_RESTORE successful', resource);
+          audit.log('PACKAGE_RESTORE', resource, 'SUCCESS');
+          setActionMsg(`${pkg.packageName} v${pkg.version} restored to ACTIVE.`);
+          setTimeout(() => setActionMsg(''), 4000);
+          load();
+        } catch (err) {
+          const reason = err?.response?.data?.error || err?.response?.data?.message || 'Restore failed';
+          logger.error('PackagesPage', 'PACKAGE_RESTORE failed', { ...resource, reason });
+          audit.log('PACKAGE_RESTORE', resource, 'FAILURE', { reason });
+          setError(reason);
+        }
+      },
+    });
   };
 
   const [recallModal,   setRecallModal]   = useState(null);
@@ -458,6 +479,29 @@ export default function PackagesPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Confirm Modal (Publish / Withdraw / Promote / Restore) ───── */}
+      {confirmModal && (
+        <div className="modal-backdrop" onClick={closeConfirm}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3 className="modal-title">{confirmModal.title}</h3>
+            <div className="modal-body">
+              <p style={{whiteSpace: 'pre-wrap'}}>{confirmModal.body}</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={closeConfirm}>
+                Cancel
+              </button>
+              <button
+                className={`btn ${confirmModal.danger ? 'btn-delete' : 'btn-primary'}`}
+                onClick={() => { confirmModal.onConfirm(); closeConfirm(); }}
+              >
+                {confirmModal.confirmLabel}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
