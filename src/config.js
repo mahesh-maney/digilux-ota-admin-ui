@@ -54,6 +54,12 @@ export const DEVICE_TYPE_EXTENSIONS = (() => {
   return _DEFAULT_EXTENSIONS;
 })();
 
+// ─── Runtime security config (reads from public/config.js → window._appConfig) ─
+const _rc = (typeof window !== 'undefined' && window._appConfig) || {};
+export const LOGIN_MAX_ATTEMPTS = _rc.LOGIN_MAX_ATTEMPTS ?? 5;
+export const LOGIN_LOCKOUT_MS   = (_rc.LOGIN_LOCKOUT_SECS ?? 30) * 1000;
+export const IDLE_TIMEOUT_MS    = (_rc.IDLE_TIMEOUT_MINS  ?? 30) * 60 * 1000;
+
 // ─── Fixed enums (not customer-configurable) ──────────────────────────────
 export const RELEASE_TYPES  = ['PROD', 'BETA', 'CUSTOM'];
 export const ROLLOUT_STAGES = ['PRODUCTION', 'BETA', 'CUSTOM'];

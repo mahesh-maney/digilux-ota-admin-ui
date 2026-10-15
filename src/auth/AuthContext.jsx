@@ -1,5 +1,5 @@
-import { createContext, useContext, useState } from 'react';
-import { COGNITO_URL, COGNITO_CLIENT } from '../config';
+import { createContext, useContext, useState, useRef, useEffect } from 'react';
+import { COGNITO_URL, COGNITO_CLIENT, IDLE_TIMEOUT_MS } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
@@ -22,20 +22,11 @@ function getIsAdmin(token) {
 }
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => {
-    return localStorage.getItem('ota_token') || '';
-  });
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('ota_user') || '';
-    if (saved) {
-      audit.setActor(saved);
-      logger.info('AuthContext', 'Session restored', { user: saved });
-    }
-    return saved;
-  });
-  const [isAdmin, setIsAdmin] = useState(() => {
-    return getIsAdmin(localStorage.getItem('ota_token') || '');
-  });
+  const [token,       setToken]       = useState('');
+  const [accessToken, setAccessToken] = useState('');
+  const [user,        setUser]        = useState('');
+  const [isAdmin,     setIsAdmin]     = useState(false);
+  const logoutRef = useRef(null);
 
   const login = async (username, password) => {
     logger.info('AuthContext', 'Login attempt', { username });
@@ -64,27 +55,58 @@ export function AuthProvider({ children }) {
 
     const data    = await resp.json();
     const idToken = data.AuthenticationResult.IdToken;
+    const accTok  = data.AuthenticationResult.AccessToken;
     const admin   = getIsAdmin(idToken);
-    localStorage.setItem('ota_token', idToken);
-    localStorage.setItem('ota_user',  username);
     audit.setActor(username);
     setToken(idToken);
+    setAccessToken(accTok);
     setUser(username);
     setIsAdmin(admin);
     logger.info('AuthContext', 'Login successful', { username, isAdmin: admin });
     audit.log('LOGIN', { username }, 'SUCCESS', { isAdmin: admin });
   };
 
-  const logout = () => {
+  const logout = async () => {
     logger.info('AuthContext', 'User logout', { user });
     audit.log('LOGOUT', { username: user }, 'SUCCESS');
-    localStorage.removeItem('ota_token');
-    localStorage.removeItem('ota_user');
     audit.setActor(null);
+    // Invalidate the token server-side before clearing local state
+    await fetch(COGNITO_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-amz-json-1.1',
+        'X-Amz-Target': 'AWSCognitoIdentityProviderService.GlobalSignOut',
+      },
+      body: JSON.stringify({ AccessToken: accessToken }),
+    }).catch(() => {}); // best-effort — don't block logout if network fails
     setToken('');
+    setAccessToken('');
     setUser('');
     setIsAdmin(false);
   };
+
+  // Keep logoutRef current so the idle effect always calls the latest logout
+  logoutRef.current = logout;
+
+  // Idle session timeout — auto-logout after 30 min of no user activity
+  useEffect(() => {
+    if (!token) return;
+    let timer;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        logger.warn('AuthContext', 'Session expired due to inactivity');
+        logoutRef.current?.();
+      }, IDLE_TIMEOUT_MS);
+    };
+    const events = ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    reset(); // start timer immediately on login
+    return () => {
+      events.forEach(e => window.removeEventListener(e, reset));
+      clearTimeout(timer);
+    };
+  }, [token]);
 
   return (
     <AuthContext.Provider value={{ token, user, isAdmin, login, logout, isLoggedIn: !!token }}>
