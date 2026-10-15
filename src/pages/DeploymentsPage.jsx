@@ -176,7 +176,7 @@ export default function DeploymentsPage() {
     e.preventDefault();
     setSubmitting(true);
     setError('');
-    // Build payload by stage — PRODUCTION has no target IDs (targets DGX-Production group)
+    // Build payload by stage — PRODUCTION has no target IDs (targets all Production devices)
     const payload = form.rolloutStage === 'BETA'
       ? { packageName: form.packageName, version: form.version, rolloutStage: form.rolloutStage, targetIds: selectedBetaIds }
       : form.rolloutStage === 'CUSTOM'
@@ -191,7 +191,7 @@ export default function DeploymentsPage() {
       audit.log('DEPLOYMENT_CREATE', resource, 'SUCCESS', { jobId: data.jobId });
       setSuccessMsg(
         form.rolloutStage === 'PRODUCTION'
-          ? `Deployment created — targeting all DGX-Production devices. Deployment ID: ${data.jobId}`
+          ? `Deployment created — targeting all Production devices. Deployment ID: ${data.jobId}`
           : `Deployment created — awaiting consent from ${data.consentCount ?? 0} device(s). Deployment ID: ${data.jobId}`
       );
       setTimeout(() => setSuccessMsg(''), 5000);
@@ -381,7 +381,7 @@ export default function DeploymentsPage() {
                   <>
                     <label>Target</label>
                     <p className="text-muted" style={{ margin: '8px 0', fontSize: '0.88rem' }}>
-                      Targets all devices in the <strong>DGX-Production</strong> thing group.<br />
+                      Targets all devices in the <strong>Production</strong> thing group.<br />
                       Every registered device is automatically in this group.
                     </p>
                   </>
@@ -442,7 +442,7 @@ export default function DeploymentsPage() {
                   <td><strong>{d.packageName}-{d.version}</strong></td>
                   <td className="text-sm">
                     {d.rolloutStage === 'PRODUCTION'
-                      ? <span className="text-muted">All DGX-Production</span>
+                      ? <span className="text-muted">All Production devices</span>
                       : d.targetId
                         ? <>{d.targetType}: {d.targetId}</>
                         : <span className="text-muted">—</span>

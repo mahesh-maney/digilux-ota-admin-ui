@@ -135,7 +135,7 @@ export default function DeploymentDetailPage() {
 
       const fromHistory = history[0]?.version === rollbackVersion;
       const targetDesc = job.rolloutStage === 'PRODUCTION'
-        ? 'All DGX-Production devices'
+        ? 'All Production devices'
         : `${job.targetType}: ${job.targetId}`;
       const confirmed = confirm(
         `Create rollback deployment?\n\n` +
@@ -279,7 +279,7 @@ export default function DeploymentDetailPage() {
                 <span className="detail-label">Target</span>
                 <span>
                   {job.rolloutStage === 'PRODUCTION'
-                    ? 'All DGX-Production devices'
+                    ? 'All Production devices'
                     : job.targetId
                       ? `${job.targetType}: ${job.targetId}`
                       : '—'
