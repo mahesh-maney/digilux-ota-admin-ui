@@ -62,7 +62,7 @@ export const IDLE_TIMEOUT_MS    = (_rc.IDLE_TIMEOUT_MINS  ?? 30) * 60 * 1000;
 
 // ─── Fixed enums (not customer-configurable) ──────────────────────────────
 export const RELEASE_TYPES  = ['PROD', 'BETA', 'CUSTOM'];
-export const ROLLOUT_STAGES = ['PRODUCTION', 'BETA', 'CUSTOM'];
+export const ROLLOUT_STAGES = ['CUSTOM', 'BETA', 'PRODUCTION'];
 
 // Display labels for release types and rollout stages
 export const RELEASE_TYPE_LABELS  = { PROD: 'PROD', BETA: 'Beta (UAT)', CUSTOM: 'CUSTOM' };

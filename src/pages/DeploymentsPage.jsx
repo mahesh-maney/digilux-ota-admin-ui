@@ -14,7 +14,7 @@ const DEFAULT_FORM = {
   version:      '',
   targetType:   'THING',
   targetId:     '',
-  rolloutStage: 'PRODUCTION',
+  rolloutStage: 'BETA',
 };
 
 function sortDeployments(jobs, col, dir) {
