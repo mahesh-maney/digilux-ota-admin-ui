@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { stripHtml } from '../utils/sanitize';
+import { copyToClipboard } from '../utils/clipboard';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
@@ -471,7 +472,7 @@ export default function DeploymentsPage() {
                 }>
                   <td>
                     <code className="text-sm" style={{ wordBreak: 'break-all' }}>{d.jobId}</code>
-                    <button className="btn-copy" title="Copy full Job ID" onClick={() => navigator.clipboard.writeText(d.jobId)}>⎘</button>
+                    <button className="btn-copy" title="Copy full Job ID" onClick={() => copyToClipboard(d.jobId)}>⎘</button>
                   </td>
                   <td><strong>{d.packageName}-{d.version}</strong></td>
                   <td className="text-sm">

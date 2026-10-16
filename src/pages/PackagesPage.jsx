@@ -2,11 +2,12 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
-import { DEVICE_TYPES, RELEASE_TYPE_LABELS } from '../config';
+import { DEVICE_TYPES, RELEASE_TYPE_LABELS, ARTIFACT_BUCKET } from '../config';
 import { logger } from '../utils/logger';
 import { audit }  from '../utils/audit';
 
 import { stripHtml } from '../utils/sanitize';
+import { copyToClipboard } from '../utils/clipboard';
 
 function compareSemver(a, b) {
   const pa = a.split('.').map(n => parseInt(n) || 0);
@@ -425,7 +426,32 @@ export default function PackagesPage() {
                   : p.status === 'ACTIVE' && !p.activated                            ? 'row-unpublished'
                   : ''
                 }>
-                  <td><strong>{p.fileName || p.packageName}</strong></td>
+                  <td>
+                    <strong>{p.fileName || p.packageName}</strong>
+                    {isAdmin && p.fileName && p.deviceType && p.packageName && p.version && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                        <span className="tooltip-wrap" style={{ maxWidth: 320 }}>
+                          <span style={{
+                            fontSize: 11, color: 'var(--text-muted)',
+                            fontFamily: 'monospace', whiteSpace: 'nowrap',
+                            overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', maxWidth: 320,
+                          }}>
+                            {ARTIFACT_BUCKET} / {p.deviceType} / {p.packageName} / {p.version} / {p.fileName}
+                          </span>
+                          <span className="tooltip">
+                            s3://{ARTIFACT_BUCKET}/{p.deviceType}/{p.packageName}/{p.version}/{p.fileName}
+                          </span>
+                        </span>
+                        <button
+                          className="btn-copy"
+                          title="Copy S3 URI"
+                          onClick={() => copyToClipboard(
+                            `s3://${ARTIFACT_BUCKET}/${p.deviceType}/${p.packageName}/${p.version}/${p.fileName}`
+                          )}
+                        >⎘</button>
+                      </div>
+                    )}
+                  </td>
                   <td className="text-sm text-muted">{p.deviceType}</td>
                   <td><span className="badge badge-grey">{RELEASE_TYPE_LABELS[p.releaseType] || p.releaseType}</span></td>
                   <td><StatusBadge status={p.status} /></td>

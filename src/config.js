@@ -19,7 +19,8 @@ export const COGNITO_URL    = import.meta.env.VITE_COGNITO_URL    || 'https://co
 export const COGNITO_CLIENT = import.meta.env.VITE_COGNITO_CLIENT || '2qmig1uh220ttntbl0gfvcde4f';
 
 // ─── Upload ───────────────────────────────────────────────────────────────
-export const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB
+export const CHUNK_SIZE      = 10 * 1024 * 1024; // 10 MB
+export const ARTIFACT_BUCKET = import.meta.env.VITE_ARTIFACT_BUCKET || 'digilux-ota-artifacts';
 
 export const DEVICE_TYPES = (import.meta.env.VITE_DEVICE_TYPES || '')
   .split(',')
