@@ -444,7 +444,7 @@ export default function DeploymentsPage() {
                   : ''
                 }>
                   <td>
-                    <code className="text-sm" title={d.jobId}>{d.jobId?.slice(-16)}</code>
+                    <code className="text-sm" title={d.jobId} style={{ display: 'block', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.jobId}</code>
                     <button className="btn-copy" title="Copy full Job ID" onClick={() => navigator.clipboard.writeText(d.jobId)}>⎘</button>
                   </td>
                   <td><strong>{d.packageName}-{d.version}</strong></td>
