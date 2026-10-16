@@ -301,37 +301,66 @@ export default function DeploymentsPage() {
                       </p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer' }}>
-                          <input
-                            type="checkbox"
-                            checked={selectedBetaEmails.size === betaUserGroups.length}
-                            onChange={e => setSelectedBetaEmails(
-                              e.target.checked ? new Set(betaUserGroups.map(u => u.email)) : new Set()
-                            )}
-                          />
-                          Select All ({betaUserGroups.length} users)
-                        </label>
-                        <hr style={{ margin: '2px 0', borderColor: 'var(--border, #333)' }} />
-                        <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', paddingRight: '4px' }}>
-                          {betaUserGroups.map(u => (
-                            <div key={u.email} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flex: 1 }}>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedBetaEmails.has(u.email)}
-                                  onChange={e => setSelectedBetaEmails(prev => {
-                                    const next = new Set(prev);
-                                    e.target.checked ? next.add(u.email) : next.delete(u.email);
-                                    return next;
-                                  })}
-                                />
+                        {/* Select All row */}
+                        <div style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '8px 12px', background: 'var(--bg)', borderRadius: '6px',
+                          border: '1px solid var(--border)',
+                        }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedBetaEmails.size === betaUserGroups.length}
+                              onChange={e => setSelectedBetaEmails(
+                                e.target.checked ? new Set(betaUserGroups.map(u => u.email)) : new Set()
+                              )}
+                            />
+                            Select All
+                          </label>
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 500 }}>
+                            {selectedBetaEmails.size} / {betaUserGroups.length} selected
+                          </span>
+                        </div>
+                        {/* Scrollable user list */}
+                        <div style={{
+                          maxHeight: '180px', overflowY: 'auto',
+                          border: '1px solid var(--border)', borderRadius: '6px',
+                          background: 'var(--surface)',
+                        }}>
+                          {betaUserGroups.map((u, idx) => (
+                            <div key={u.email} style={{
+                              display: 'flex', alignItems: 'center', gap: '8px',
+                              padding: '9px 12px',
+                              borderBottom: idx < betaUserGroups.length - 1 ? '1px solid var(--border)' : 'none',
+                              background: selectedBetaEmails.has(u.email) ? '#eff6ff' : 'transparent',
+                              transition: 'background .1s',
+                            }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedBetaEmails.has(u.email)}
+                                onChange={e => setSelectedBetaEmails(prev => {
+                                  const next = new Set(prev);
+                                  e.target.checked ? next.add(u.email) : next.delete(u.email);
+                                  return next;
+                                })}
+                                style={{ flexShrink: 0 }}
+                              />
+                              <span style={{
+                                flex: 1, fontSize: '13px', overflow: 'hidden',
+                                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                cursor: 'pointer', title: u.email,
+                              }} title={u.email} onClick={() => setSelectedBetaEmails(prev => {
+                                const next = new Set(prev);
+                                prev.has(u.email) ? next.delete(u.email) : next.add(u.email);
+                                return next;
+                              })}>
                                 {u.email}
-                              </label>
+                              </span>
                               {u.deviceIds.length > 1 && (
                                 <select
                                   value={selectedDevicePerUser[u.email] || u.deviceIds[0]}
                                   onChange={e => setSelectedDevicePerUser(prev => ({ ...prev, [u.email]: e.target.value }))}
-                                  style={{ fontSize: '0.78rem', padding: '2px 4px' }}
+                                  style={{ fontSize: '0.78rem', padding: '2px 4px', flexShrink: 0 }}
                                   title="Select device ID for this user"
                                 >
                                   {u.deviceIds.map(id => (
@@ -342,9 +371,6 @@ export default function DeploymentsPage() {
                             </div>
                           ))}
                         </div>
-                        <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary, #aaa)' }}>
-                          {selectedBetaEmails.size} of {betaUserGroups.length} selected
-                        </p>
                       </div>
                     )}
                   </>
@@ -444,7 +470,7 @@ export default function DeploymentsPage() {
                   : ''
                 }>
                   <td>
-                    <code className="text-sm" title={d.jobId} style={{ display: 'block', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.jobId}</code>
+                    <code className="text-sm" style={{ wordBreak: 'break-all' }}>{d.jobId}</code>
                     <button className="btn-copy" title="Copy full Job ID" onClick={() => navigator.clipboard.writeText(d.jobId)}>⎘</button>
                   </td>
                   <td><strong>{d.packageName}-{d.version}</strong></td>
