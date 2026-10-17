@@ -447,7 +447,7 @@ export default function DeploymentsPage() {
           <table>
             <thead>
               <tr>
-                {SearchSortTh('jobId',        'Job ID')}
+                {SearchSortTh('jobId',        'Deployment ID')}
                 {SearchSortTh('packageName',  'Package / Version')}
                 {SearchSortTh('targetId',     'Target')}
                 {SearchSortTh('rolloutStage', 'Stage')}
@@ -472,7 +472,7 @@ export default function DeploymentsPage() {
                 }>
                   <td>
                     <code className="text-sm" style={{ wordBreak: 'break-all' }}>{d.jobId}</code>
-                    <button className="btn-copy" title="Copy full Job ID" onClick={() => copyToClipboard(d.jobId)}>⎘</button>
+                    <button className="btn-copy" title="Copy full Deployment ID" onClick={() => copyToClipboard(d.jobId)}>⎘</button>
                   </td>
                   <td><strong>{d.packageName}-{d.version}</strong></td>
                   <td className="text-sm">
