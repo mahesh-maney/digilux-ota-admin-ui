@@ -272,7 +272,7 @@ export default function DeploymentDetailPage() {
           <div className="card mb-4">
             <div className="detail-grid">
               <div className="detail-row">
-                <span className="detail-label">Job ID</span>
+                <span className="detail-label">Deployment ID</span>
                 <span><code>{job.jobId}</code></span>
               </div>
               <div className="detail-row">
